@@ -6,16 +6,16 @@ import { Ed25519PrivateKey } from "@aptos-labs/ts-sdk";
 
 const APTOS_BINARY = "aptos";
 
-const path = require('path');
+const path = require("path");
 
 function stripNodeModulesBin(pathEnv: string) {
   return pathEnv
     .split(path.delimiter)
-    .filter(p => !p.includes('node_modules/.bin'))
+    .filter((p) => !p.includes("node_modules/.bin"))
     .join(path.delimiter);
 }
 
-const cleanPath = stripNodeModulesBin(process.env.PATH || '');
+const cleanPath = stripNodeModulesBin(process.env.PATH || "");
 
 /**
  * Executes a shell command and parses its output as JSON.
@@ -134,8 +134,18 @@ class TestHarness {
     this.init_cli_profile("default");
     this.init_session(options);
     this.fundAccount("default", 10000000000 /* 100 APT */);
-  }
 
+    // Auto-cleanup if running in Jest, Vitest, Jasmine, or Mocha
+    //
+    // Jest, Vitest, and Jasmine use `afterAll`, while Mocha uses `after`.
+    // We check for both and register the cleanup hook accordingly.
+    const globalAny = globalThis as any;
+    if (typeof globalAny.afterAll === "function") {
+      globalAny.afterAll(() => this.cleanup());
+    } else if (typeof globalAny.after === "function") {
+      globalAny.after(() => this.cleanup());
+    }
+  }
 
   /**
    * Initialize the Aptos CLI profile in the temporary directory.
@@ -384,4 +394,10 @@ class TestHarness {
   }
 }
 
-export { TestHarness, type TestHarnessOptions, type MoveRunOptions, type ViewOptions, type PublishOptions };
+export {
+  TestHarness,
+  type TestHarnessOptions,
+  type MoveRunOptions,
+  type ViewOptions,
+  type PublishOptions,
+};
