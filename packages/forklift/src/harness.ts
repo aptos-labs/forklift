@@ -32,7 +32,7 @@ export function runCommand(
 ): any {
   const result = spawnSync(command, args, {
     cwd: options.cwd,
-    shell: true, // enables running shell commands like `ls -la`
+    shell: false,
     encoding: "utf8",
     env: {
       PATH: cleanPath,
@@ -364,6 +364,23 @@ class TestHarness {
         error,
       );
     }
+  }
+
+  getAccountAddress(profile: string): string {
+    const res = runCommand(APTOS_BINARY, ["config", "show-profiles"], {
+      cwd: this.tempDir,
+    });
+
+    if (!res || !res.Result || !res.Result[profile]) {
+      throw new Error(`Profile ${profile} not found`);
+    }
+
+    // Return the account address with 0x prefix if missing
+    let addr = res.Result[profile].account;
+    if (!addr.startsWith("0x")) {
+      addr = "0x" + addr;
+    }
+    return addr;
   }
 }
 
