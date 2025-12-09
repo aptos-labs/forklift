@@ -15,7 +15,7 @@ describe("Sample Workflow", () => {
     const res = harness.runMoveFunction({
       profile: "default",
       functionId: "0x1::aptos_account::transfer",
-      args: ["address:default", "u64:100"],
+      args: ["address:default", "bad"],
     });
 
     assertTxnSuccess(res);
