@@ -1,6 +1,6 @@
 import { TestHarness, assertTxnSuccess } from "forklift";
 
-describe("Sample Workflow", () => {
+describe("fund, transfer, and view sequence number", () => {
   let harness: TestHarness = new TestHarness();
 
   afterAll(() => {
