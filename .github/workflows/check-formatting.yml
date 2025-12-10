@@ -1,0 +1,28 @@
+name: Check Formatting
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check-formatting:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check forklift formatting
+        working-directory: packages/forklift
+        run: |
+          npm ci
+          npm run format:check
+
+      - name: Check testsuite formatting
+        working-directory: packages/testsuite
+        run: |
+          npm ci
+          npm run format:check
