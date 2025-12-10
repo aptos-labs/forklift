@@ -1,8 +1,21 @@
 import { spawnSync } from "child_process";
-import { mkdtempSync, rmSync } from "fs";
+import {
+  mkdtempSync,
+  rmSync,
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  mkdirSync,
+} from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import { Ed25519PrivateKey } from "@aptos-labs/ts-sdk";
+import {
+  Account,
+  Ed25519PrivateKey,
+  PrivateKey,
+  PrivateKeyVariants,
+} from "@aptos-labs/ts-sdk";
+import yaml from "js-yaml";
 
 const APTOS_BINARY = "aptos";
 
@@ -45,7 +58,7 @@ export function runCommand(
 
   if (result.status !== 0) {
     throw new Error(
-      `Process exited with code ${result.status}: ${result.stderr}`,
+      `Process exited with code ${result.status}.\n\nStdout:\n${result.stdout}\nStderr:\n${result.stderr}`,
     );
   }
 
@@ -134,51 +147,71 @@ class TestHarness {
     this.init_cli_profile("default");
     this.init_session(options);
     this.fundAccount("default", 10000000000 /* 100 APT */);
-
-    // Auto-cleanup if running in Jest, Vitest, Jasmine, or Mocha
-    //
-    // Jest, Vitest, and Jasmine use `afterAll`, while Mocha uses `after`.
-    // We check for both and register the cleanup hook accordingly.
-    const globalAny = globalThis as any;
-    if (typeof globalAny.afterAll === "function") {
-      globalAny.afterAll(() => this.cleanup());
-    } else if (typeof globalAny.after === "function") {
-      globalAny.after(() => this.cleanup());
-    }
   }
 
   /**
    * Initialize the Aptos CLI profile in the temporary directory.
-   *
    * If a private key is not provided, a random one will be generated.
+   *
+   * This is currently done by appending a new profile to the CLI's config file
+   * (`.aptos/config.yaml`) as opposed to running the CLI's `init` command, in order to
+   * avoid unnecessary communication with the actual network.
    *
    * @throws Error if the initialization fails.
    */
   init_cli_profile(profile_name: string, privateKey?: string): void {
-    const pk = privateKey
-      ? privateKey
-      : Ed25519PrivateKey.generate().toHexString();
+    const privKey = privateKey
+      ? new Ed25519PrivateKey(
+          PrivateKey.formatPrivateKey(privateKey, PrivateKeyVariants.Ed25519),
+        )
+      : Ed25519PrivateKey.generate();
 
-    // prettier-ignore
-    const res = runCommand(
-      APTOS_BINARY,
-      [
-        "init",
-        "--profile", profile_name,
-        "--network", "mainnet",
-        "--skip-faucet",
-        "--private-key", pk,
-      ],
-      {
-        cwd: this.tempDir,
-      },
-    );
+    const pubKey = privKey.publicKey();
+    const addr = Account.fromPrivateKey({
+      privateKey: privKey,
+    }).accountAddress.toString();
 
-    if (!res || res.Result !== "Success") {
+    let profile = {
+      network: "Local",
+      rest_url: "https://fullnode.dummynetwork.aptoslabs.com",
+      account: addr,
+      private_key: privKey.toAIP80String(),
+      public_key: "ed25519-pub-" + pubKey.toString(),
+    };
+
+    const aptosDir = join(this.tempDir, ".aptos");
+    const configPath = join(aptosDir, "config.yaml");
+
+    if (!existsSync(aptosDir)) {
+      mkdirSync(aptosDir, { recursive: true });
+    }
+
+    let config: any = { profiles: {} };
+    if (existsSync(configPath)) {
+      try {
+        const fileContent = readFileSync(configPath, "utf8");
+        config = yaml.load(fileContent) || { profiles: {} };
+        if (!config.profiles) {
+          config.profiles = {};
+        }
+      } catch (e) {
+        throw new Error(
+          `Failed to parse existing config at ${configPath}: ${e}`,
+        );
+      }
+    }
+
+    if (config.profiles[profile_name]) {
       throw new Error(
-        `aptos init failed: expected Result = Success, got ${JSON.stringify(res)}`,
+        `Profile ${profile_name} already exists in ${configPath}`,
       );
     }
+    config.profiles[profile_name] = profile;
+
+    writeFileSync(
+      configPath,
+      yaml.dump(config, { indent: 2, sortKeys: true, lineWidth: 120 }),
+    );
   }
 
   /**
@@ -222,7 +255,7 @@ class TestHarness {
    *
    * @throws Error if the funding operation fails
    */
-  fundAccount(account: string, amount: number): void {
+  fundAccount(account: string, amount: number | bigint | string): void {
     // prettier-ignore
     const res = runCommand(
       APTOS_BINARY,
@@ -363,6 +396,64 @@ class TestHarness {
     });
 
     return res;
+  }
+
+  /**
+   * Views a resource group from the simulation session.
+   *
+   * @param account The account address or profile name
+   * @param resourceGroup The resource group tag (e.g. 0x1::object::ObjectGroup)
+   * @param derivedObjectAddress Optional address to derive an object address from
+   * @returns The parsed JSON output
+   */
+  viewResourceGroup(
+    account: string,
+    resourceGroup: string,
+    derivedObjectAddress?: string,
+  ): any {
+    const args = [
+      "move",
+      "sim",
+      "view-resource-group",
+      "--session",
+      this.getSessionPath(),
+      "--account",
+      account,
+      "--resource-group",
+      resourceGroup,
+    ];
+
+    if (derivedObjectAddress) {
+      args.push("--derived-object-address", derivedObjectAddress);
+    }
+
+    return runCommand(APTOS_BINARY, args, { cwd: this.tempDir });
+  }
+
+  /**
+   * Gets the APT balance from the Fungible Store for a given account.
+   *
+   * Uses the primary store derived from the account and the APT metadata address (0xA).
+   *
+   * @param account The account address or profile name
+   * @returns The balance as a bigint
+   */
+  getAPTBalanceFungibleStore(account: string): bigint {
+    const res = this.viewResourceGroup(
+      account,
+      "0x1::object::ObjectGroup",
+      "0xA",
+    );
+
+    if (
+      !res ||
+      !res.Result ||
+      !res.Result["0x1::fungible_asset::FungibleStore"]
+    ) {
+      return BigInt(0);
+    }
+
+    return BigInt(res.Result["0x1::fungible_asset::FungibleStore"].balance);
   }
 
   cleanup(): void {

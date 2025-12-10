@@ -3,6 +3,10 @@ import { TestHarness, assertTxnSuccess } from "forklift";
 describe("fund, transfer, and view sequence number", () => {
   let harness: TestHarness = new TestHarness();
 
+  afterAll(() => {
+    harness.cleanup();
+  });
+
   it("fund account", () => {
     harness.fundAccount("default", 100000000 /* 1 APT */);
   });
