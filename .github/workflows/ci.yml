@@ -1,4 +1,4 @@
-name: Run Sample Project Tests
+name: Run Forklift Tests
 
 on:
   pull_request:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  run-sample-project-tests:
+  run-forklift-tests:
     runs-on: ubuntu-latest
 
     steps:
@@ -33,8 +33,8 @@ jobs:
         npm ci
         npm run build
 
-    - name: Run Sample Project Tests
-      working-directory: packages/sample-project
+    - name: Run Forklift Tests
+      working-directory: packages/testsuite
       run: |
         npm ci
         npm test
