@@ -399,12 +399,10 @@ class TestHarness {
   }
 
   /**
-   * Views a resource group from the simulation session.
+   * Views a resource group.
    *
-   * @param account The account address or profile name
-   * @param resourceGroup The resource group tag (e.g. 0x1::object::ObjectGroup)
-   * @param derivedObjectAddress Optional address to derive an object address from
-   * @returns The parsed JSON output
+   * @returns The resource group as a JSON object -- a map from resource type names
+   * to individual resource objects.
    */
   viewResourceGroup(
     account: string,
@@ -431,12 +429,31 @@ class TestHarness {
   }
 
   /**
-   * Gets the APT balance from the Fungible Store for a given account.
+   * Views a specific resource from the simulation session.
    *
+   * @returns The resource as a JSON object.
+   */
+  viewResource(account: string, resource: string): any {
+    const args = [
+      "move",
+      "sim",
+      "view-resource",
+      "--session",
+      this.getSessionPath(),
+      "--account",
+      account,
+      "--resource",
+      resource,
+    ];
+
+    return runCommand(APTOS_BINARY, args, { cwd: this.tempDir });
+  }
+
+  /**
+   * Gets the APT balance from the Fungible Store for a given account.
    * Uses the primary store derived from the account and the APT metadata address (0xA).
    *
-   * @param account The account address or profile name
-   * @returns The balance as a bigint
+   * @returns The APT balance as a bigint.
    */
   getAPTBalanceFungibleStore(account: string): bigint {
     const res = this.viewResourceGroup(
@@ -467,6 +484,44 @@ class TestHarness {
     }
   }
 
+  /**
+   * Gets the current timestamp in microseconds.
+   *
+   * @returns The current time micros as a bigint.
+   */
+  getCurrentTimeMicros(): bigint {
+    const res = this.viewResource(
+      "0x1",
+      "0x1::timestamp::CurrentTimeMicroseconds",
+    );
+
+    if (!res || !res.Result || !res.Result.microseconds) {
+      throw new Error("Failed to get current time micros");
+    }
+
+    return BigInt(res.Result.microseconds);
+  }
+
+  /**
+   * Gets the current gas schedule.
+   *
+   * @returns The gas schedule as a JSON object.
+   */
+  getGasSchedule(): any {
+    const res = this.viewResource("0x1", "0x1::gas_schedule::GasScheduleV2");
+
+    if (!res || !res.Result) {
+      throw new Error("Failed to get gas schedule");
+    }
+
+    return res.Result;
+  }
+
+  /**
+   * Gets the account address for a given profile.
+   *
+   * @returns The account address as a string.
+   */
   getAccountAddress(profile: string): string {
     const res = runCommand(APTOS_BINARY, ["config", "show-profiles"], {
       cwd: this.tempDir,
