@@ -1,7 +1,7 @@
 {
-    "name": "sample-project",
+    "name": "forklift-testsuite",
     "version": "1.0.0",
-    "description": "Sample project demonstrating Forklift usage",
+    "description": "Forklift testsuite",
     "scripts": {
         "test": "jest"
     },
