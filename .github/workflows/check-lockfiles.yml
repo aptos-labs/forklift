@@ -1,0 +1,36 @@
+name: Check Lockfiles
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check-lockfiles:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check forklift lockfile
+        working-directory: packages/forklift
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          if ! git diff --exit-code package-lock.json; then
+            echo "Error: packages/forklift/package-lock.json is not up to date."
+            echo "Please run 'npm install' in packages/forklift and commit the changes."
+            exit 1
+          fi
+
+      - name: Check testsuite lockfile
+        working-directory: packages/testsuite
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          if ! git diff --exit-code package-lock.json; then
+            echo "Error: packages/testsuite/package-lock.json is not up to date."
+            echo "Please run 'npm install' in packages/testsuite and commit the changes."
+            exit 1
+          fi
