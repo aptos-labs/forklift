@@ -395,8 +395,7 @@ class TestHarness {
 }
 
 export {
-  TestHarness,
-  type TestHarnessOptions,
+  TestHarness, type TestHarnessOptions,
   type MoveRunOptions,
   type ViewOptions,
   type PublishOptions,
