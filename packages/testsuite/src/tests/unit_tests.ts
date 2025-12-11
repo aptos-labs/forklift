@@ -1,5 +1,6 @@
 import { TestHarness } from "forklift";
 import { Ed25519PrivateKey, Account } from "@aptos-labs/ts-sdk";
+import * as path from "path";
 
 describe("initialize harness", () => {
   it("should initialize with default options", () => {
@@ -201,5 +202,73 @@ describe("view resource", () => {
     expect(gasSchedule).toBeDefined();
     expect(gasSchedule).toHaveProperty("entries");
     expect(gasSchedule).toHaveProperty("feature_version");
+  });
+});
+
+describe("publish package", () => {
+  const harness = new TestHarness();
+  const profileName = "alice";
+
+  afterAll(() => {
+    harness.cleanup();
+  });
+
+  it("should init account and fund it", () => {
+    harness.init_cli_profile(profileName);
+    harness.fundAccount(profileName, 100000000);
+  });
+
+  it("should publish message package and verify registry", () => {
+    const packageDir = path.resolve(__dirname, "../../move_packages/message");
+
+    harness.publishPackage({
+      profile: profileName,
+      packageDir,
+      namedAddresses: {
+        simple_message: profileName,
+      },
+    });
+
+    const registry = harness.viewResource(
+      profileName,
+      "0x1::code::PackageRegistry",
+    );
+    expect(registry.Result).toBeDefined();
+    expect(registry.Result.packages).toBeDefined();
+    expect(registry.Result.packages.length).toBeGreaterThan(0);
+
+    // verify the package name
+    const packageMetadata = registry.Result.packages.find(
+      (pkg: any) => pkg.name === "SimpleMessage",
+    );
+    expect(packageMetadata).toBeDefined();
+    expect(packageMetadata.upgrade_number).toBe("0");
+  });
+
+  it("should upgrade message package and verify upgrade number is incremented", () => {
+    const packageDir = path.resolve(__dirname, "../../move_packages/message");
+
+    harness.publishPackage({
+      profile: profileName,
+      packageDir,
+      namedAddresses: {
+        simple_message: profileName,
+      },
+    });
+
+    const registry = harness.viewResource(
+      profileName,
+      "0x1::code::PackageRegistry",
+    );
+    expect(registry.Result).toBeDefined();
+    expect(registry.Result.packages).toBeDefined();
+    expect(registry.Result.packages.length).toBeGreaterThan(0);
+
+    // verify the package name
+    const packageMetadata = registry.Result.packages.find(
+      (pkg: any) => pkg.name === "SimpleMessage",
+    );
+    expect(packageMetadata).toBeDefined();
+    expect(packageMetadata.upgrade_number).toBe("1");
   });
 });
