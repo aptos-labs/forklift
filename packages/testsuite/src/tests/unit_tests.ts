@@ -207,30 +207,28 @@ describe("view resource", () => {
 
 describe("publish package", () => {
   const harness = new TestHarness();
-  const profileName = "alice";
+  const alice = "alice";
 
   afterAll(() => {
     harness.cleanup();
   });
 
-  it("should init account and fund it", () => {
-    harness.init_cli_profile(profileName);
-    harness.fundAccount(profileName, 100000000);
-  });
-
   it("should publish message package and verify registry", () => {
+    harness.init_cli_profile(alice);
+    harness.fundAccount(alice, 100000000);
+
     const packageDir = path.resolve(__dirname, "../../move_packages/message");
 
     harness.publishPackage({
-      profile: profileName,
+      profile: alice,
       packageDir,
       namedAddresses: {
-        simple_message: profileName,
+        simple_message: alice,
       },
     });
 
     const registry = harness.viewResource(
-      profileName,
+      alice,
       "0x1::code::PackageRegistry",
     );
     expect(registry.Result).toBeDefined();
@@ -249,15 +247,15 @@ describe("publish package", () => {
     const packageDir = path.resolve(__dirname, "../../move_packages/message");
 
     harness.publishPackage({
-      profile: profileName,
+      profile: alice,
       packageDir,
       namedAddresses: {
-        simple_message: profileName,
+        simple_message: alice,
       },
     });
 
     const registry = harness.viewResource(
-      profileName,
+      alice,
       "0x1::code::PackageRegistry",
     );
     expect(registry.Result).toBeDefined();
@@ -270,5 +268,57 @@ describe("publish package", () => {
     );
     expect(packageMetadata).toBeDefined();
     expect(packageMetadata.upgrade_number).toBe("1");
+  });
+
+  it("should fail when publishing with invalid package directory", () => {
+    const invalidPackageDir = path.resolve(__dirname, "non_existent_dir");
+
+    expect(() => {
+      harness.publishPackage({
+        profile: alice,
+        packageDir: invalidPackageDir,
+        namedAddresses: {
+          simple_message: alice,
+        },
+      });
+    }).toThrow();
+  });
+
+  it("should fail when publishing without required named address", () => {
+    const packageDir = path.resolve(__dirname, "../../move_packages/message");
+
+    expect(() => {
+      harness.publishPackage({
+        profile: alice,
+        packageDir,
+      });
+    }).toThrow();
+  });
+
+  it("should publish with included artifacts set to none", () => {
+    const artifactProfile = "artifact_tester";
+    harness.init_cli_profile(artifactProfile);
+    harness.fundAccount(artifactProfile, 100000000);
+
+    const packageDir = path.resolve(__dirname, "../../move_packages/message");
+
+    harness.publishPackage({
+      profile: artifactProfile,
+      packageDir,
+      namedAddresses: {
+        simple_message: harness.getAccountAddress(artifactProfile),
+      },
+      includedArtifacts: "none",
+    });
+
+    const registry = harness.viewResource(
+      artifactProfile,
+      "0x1::code::PackageRegistry",
+    );
+    // verify the package exists
+    const packageMetadata = registry.Result.packages.find(
+      (pkg: any) => pkg.name === "SimpleMessage",
+    );
+    expect(packageMetadata).toBeDefined();
   });
 });
