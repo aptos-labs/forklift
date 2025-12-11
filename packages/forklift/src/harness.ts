@@ -16,6 +16,7 @@ import {
   PrivateKeyVariants,
 } from "@aptos-labs/ts-sdk";
 import yaml from "js-yaml";
+import { parse as parseToml } from "smol-toml";
 
 const APTOS_BINARY = "aptos";
 
@@ -90,6 +91,29 @@ export function runCommand(
   }
 }
 
+/**
+ * Gets the package name from the manifest (Move.toml) file in the given package directory.
+ *
+ * @returns The package name as a string.
+ */
+function getPackageName(packageDir: string): string {
+  const moveTomlPath = join(packageDir, "Move.toml");
+  if (!existsSync(moveTomlPath)) {
+    throw new Error(`Move.toml not found at ${moveTomlPath}`);
+  }
+  const content = readFileSync(moveTomlPath, "utf8");
+
+  try {
+    const parsed = parseToml(content) as any;
+    if (!parsed.package || !parsed.package.name) {
+      throw new Error(`Could not find package.name in ${moveTomlPath}`);
+    }
+    return parsed.package.name;
+  } catch (e) {
+    throw new Error(`Failed to parse ${moveTomlPath}: ${e}`);
+  }
+}
+
 interface TestHarnessOptions {
   network?: string;
   apiKey?: string;
@@ -100,6 +124,19 @@ interface MoveRunOptions {
   functionId: string;
   typeArgs?: string[];
   args?: string[];
+  gasUnitPrice?: number;
+  maxGas?: number;
+  expirationSecs?: number;
+}
+
+interface MoveRunScriptOptions {
+  profile: string;
+  scriptPath?: string;
+  packageDir: string;
+  scriptName: string;
+  namedAddresses?: { [key: string]: string };
+  args?: string[];
+  typeArgs?: string[];
   gasUnitPrice?: number;
   maxGas?: number;
   expirationSecs?: number;
@@ -173,7 +210,7 @@ class TestHarness {
 
     let profile = {
       network: "Local",
-      rest_url: "https://fullnode.dummynetwork.aptoslabs.com",
+      rest_url: "https://dummy.network.aptoslabs.com",
       account: addr,
       private_key: privKey.toAIP80String(),
       public_key: "ed25519-pub-" + pubKey.toString(),
@@ -323,6 +360,78 @@ class TestHarness {
     }
 
     const res = runCommand(APTOS_BINARY, args, {
+      cwd: this.tempDir,
+    });
+
+    return res;
+  }
+
+  /**
+   * Runs a Move script. Will automatically compile the package before running the script.
+   * As the caller, you are responsible for supplying the correct named addresses for the package.
+   *
+   * @returns The execution result as a JSON object.
+   * @throws Error if running into non-execution failures (including compilation errors).
+   */
+  runMoveScript(options: MoveRunScriptOptions): any {
+    const compileArgs = [
+      "move",
+      "compile",
+      "--package-dir",
+      options.packageDir,
+    ];
+
+    if (options.namedAddresses) {
+      compileArgs.push("--named-addresses");
+      compileArgs.push(
+        Object.entries(options.namedAddresses)
+          .map(([key, value]) => `${key}=${value}`)
+          .join(","),
+      );
+    }
+
+    runCommand(APTOS_BINARY, compileArgs, {
+      cwd: this.tempDir,
+    });
+
+    const packageName = getPackageName(options.packageDir);
+
+    // prettier-ignore
+    const runArgs = [
+      "move", "run-script",
+      "--session", this.getSessionPath(),
+      "--profile", options.profile,
+      "--compiled-script-path", join(options.packageDir, "build", packageName, "bytecode_scripts", options.scriptName + ".mv"),
+    ];
+
+    // Add optional type arguments
+    if (options.typeArgs && options.typeArgs.length > 0) {
+      runArgs.push("--type-args");
+      runArgs.push(...options.typeArgs);
+    }
+
+    // Add optional arguments
+    if (options.args && options.args.length > 0) {
+      runArgs.push("--args");
+      runArgs.push(...options.args);
+    }
+
+    // Add optional gas unit price
+    if (options.gasUnitPrice !== undefined) {
+      runArgs.push("--gas-unit-price", options.gasUnitPrice.toString());
+    }
+
+    // Add optional max gas
+    if (options.maxGas !== undefined) {
+      runArgs.push("--max-gas", options.maxGas.toString());
+    }
+
+    // Add optional expiration seconds
+    if (options.expirationSecs !== undefined) {
+      runArgs.push("--expiration-secs", options.expirationSecs.toString());
+    }
+
+    const res = runCommand(APTOS_BINARY, runArgs, {
       cwd: this.tempDir,
     });
 
