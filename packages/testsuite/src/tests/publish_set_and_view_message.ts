@@ -1,4 +1,4 @@
-import { TestHarness, assertTxnSuccess } from "forklift";
+import { assertTxnSuccess, TestHarness } from "forklift";
 import * as path from "path";
 
 describe("publish, set message, and view message", () => {
