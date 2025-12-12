@@ -22,6 +22,17 @@ const APTOS_BINARY = "aptos";
 
 const path = require("path");
 
+// TODOs
+// - Object code publishing
+// - Large package publishing
+// - Alt backend: real network
+// - Additional options for certain commands
+// - Tests: forking
+// - Test-only APIs
+//   - rotate key
+//   - set resource
+//   - set resource in group
+
 function stripNodeModulesBin(pathEnv: string) {
   return pathEnv
     .split(path.delimiter)
@@ -58,8 +69,13 @@ export function runCommand(
   }
 
   if (result.status !== 0) {
+    const stdout = result.stdout || "(no output)";
+    const stderr = result.stderr || "(no output)";
+
     throw new Error(
-      `Process exited with code ${result.status}.\n\nStdout:\n${result.stdout}\nStderr:\n${result.stderr}`,
+      `Process exited with code ${result.status}.\n\n` +
+        `Stdout:\n${stdout}\n` +
+        `Stderr:\n${stderr}`,
     );
   }
 
@@ -96,7 +112,7 @@ export function runCommand(
  *
  * @returns The package name as a string.
  */
-function getPackageName(packageDir: string): string {
+function getMovePackageNameFromManifest(packageDir: string): string {
   const moveTomlPath = join(packageDir, "Move.toml");
   if (!existsSync(moveTomlPath)) {
     throw new Error(`Move.toml not found at ${moveTomlPath}`);
@@ -117,6 +133,7 @@ function getPackageName(packageDir: string): string {
 interface TestHarnessOptions {
   network?: string;
   apiKey?: string;
+  networkVersion?: number | string | bigint;
 }
 
 interface MoveRunOptions {
@@ -165,25 +182,51 @@ interface PublishOptions {
  * state for simulations.
  *
  * Under the hood, it uses the Transaction Simulation Session feature from the Aptos CLI.
+ *
+ * To prevent misuse of the harness after it has been cleaned up, the class uses a Proxy
+ * pattern. The constructor returns a Proxy that intercepts all method calls. If the
+ * `cleanup()` method has been called (setting `poisoned` to true), any subsequent method
+ * call (except `cleanup` itself) will throw an error. This ensures that the harness
+ * cannot be used to interact with a non-existent temporary directory.
  */
 class TestHarness {
-  private tempDir: string;
+  private workingDir: string;
+  private poisoned: boolean;
 
-  getTempDir(): string {
-    return this.tempDir;
+  getWorkingDir(): string {
+    return this.workingDir;
   }
 
   getSessionPath(): string {
-    return join(this.tempDir, "data");
+    return join(this.workingDir, "data");
   }
 
   constructor(options: TestHarnessOptions = {}) {
     // Create a temporary directory with a unique name
-    this.tempDir = mkdtempSync(join(tmpdir(), "move-test-"));
+    this.workingDir = mkdtempSync(join(tmpdir(), "move-test-"));
+    this.poisoned = false;
 
     this.init_cli_profile("default");
     this.init_session(options);
     this.fundAccount("default", 10000000000 /* 100 APT */);
+
+    return new Proxy(this, {
+      get: (target, prop, receiver) => {
+        const value = Reflect.get(target, prop, receiver);
+        if (
+          (target as any).poisoned &&
+          typeof value === "function" &&
+          prop !== "cleanup"
+        ) {
+          return () => {
+            throw new Error(
+              "TestHarness is poisoned: cleanup() has already been called",
+            );
+          };
+        }
+        return value;
+      },
+    });
   }
 
   /**
@@ -216,7 +259,7 @@ class TestHarness {
       public_key: "ed25519-pub-" + pubKey.toString(),
     };
 
-    const aptosDir = join(this.tempDir, ".aptos");
+    const aptosDir = join(this.workingDir, ".aptos");
     const configPath = join(aptosDir, "config.yaml");
 
     if (!existsSync(aptosDir)) {
@@ -267,14 +310,23 @@ class TestHarness {
     if (options.network && options.apiKey) {
       args.push("--network", options.network);
       args.push("--api-key", options.apiKey);
-    } else if (options.network || options.apiKey) {
-      throw new Error(
-        "Both network and apiKey must be provided together, or neither",
-      );
+
+      if (options.networkVersion) {
+        args.push("--network-version", options.networkVersion.toString());
+      }
+    } else {
+      if (options.network || options.apiKey) {
+        throw new Error(
+          "Both network and apiKey must be provided together, or neither",
+        );
+      }
+      if (options.networkVersion) {
+        throw new Error("networkVersion cannot be set when network is not set");
+      }
     }
 
     const res = runCommand(APTOS_BINARY, args, {
-      cwd: this.tempDir,
+      cwd: this.workingDir,
     });
 
     if (!res || res.Result !== "Success") {
@@ -303,7 +355,7 @@ class TestHarness {
         "--amount", amount.toString(),
       ],
       {
-        cwd: this.tempDir,
+        cwd: this.workingDir,
       },
     );
 
@@ -360,7 +412,7 @@ class TestHarness {
     }
 
     const res = runCommand(APTOS_BINARY, args, {
-      cwd: this.tempDir,
+      cwd: this.workingDir,
     });
 
     return res;
@@ -391,10 +443,10 @@ class TestHarness {
     }
 
     runCommand(APTOS_BINARY, compileArgs, {
-      cwd: this.tempDir,
+      cwd: this.workingDir,
     });
 
-    const packageName = getPackageName(options.packageDir);
+    const packageName = getMovePackageNameFromManifest(options.packageDir);
 
     // prettier-ignore
     const runArgs = [
@@ -432,7 +484,7 @@ class TestHarness {
     }
 
     const res = runCommand(APTOS_BINARY, runArgs, {
-      cwd: this.tempDir,
+      cwd: this.workingDir,
     });
 
     return res;
@@ -469,7 +521,7 @@ class TestHarness {
     }
 
     const res = runCommand(APTOS_BINARY, args, {
-      cwd: this.tempDir,
+      cwd: this.workingDir,
     });
 
     return res;
@@ -501,7 +553,7 @@ class TestHarness {
     }
 
     const res = runCommand(APTOS_BINARY, args, {
-      cwd: this.tempDir,
+      cwd: this.workingDir,
     });
 
     return res;
@@ -534,7 +586,7 @@ class TestHarness {
       args.push("--derived-object-address", derivedObjectAddress);
     }
 
-    return runCommand(APTOS_BINARY, args, { cwd: this.tempDir });
+    return runCommand(APTOS_BINARY, args, { cwd: this.workingDir });
   }
 
   /**
@@ -555,7 +607,7 @@ class TestHarness {
       resource,
     ];
 
-    return runCommand(APTOS_BINARY, args, { cwd: this.tempDir });
+    return runCommand(APTOS_BINARY, args, { cwd: this.workingDir });
   }
 
   /**
@@ -583,11 +635,12 @@ class TestHarness {
   }
 
   cleanup(): void {
+    this.poisoned = true;
     try {
-      rmSync(this.tempDir, { recursive: true, force: true });
+      rmSync(this.workingDir, { recursive: true, force: true });
     } catch (error) {
       console.warn(
-        `Failed to cleanup temporary directory ${this.tempDir}:`,
+        `Failed to cleanup temporary directory ${this.workingDir}:`,
         error,
       );
     }
@@ -633,7 +686,7 @@ class TestHarness {
    */
   getAccountAddress(profile: string): string {
     const res = runCommand(APTOS_BINARY, ["config", "show-profiles"], {
-      cwd: this.tempDir,
+      cwd: this.workingDir,
     });
 
     if (!res || !res.Result || !res.Result[profile]) {
