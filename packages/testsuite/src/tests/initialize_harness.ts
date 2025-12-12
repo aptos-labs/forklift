@@ -27,4 +27,10 @@ describe("initialize harness", () => {
       });
     }).toThrow();
   });
+
+  it("should throw error if networkVersion is provided without network", () => {
+    expect(() => {
+      new TestHarness({ networkVersion: 123 });
+    }).toThrow("networkVersion cannot be set when network is not set");
+  });
 });

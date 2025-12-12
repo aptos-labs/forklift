@@ -25,9 +25,13 @@ const path = require("path");
 // TODOs
 // - Object code publishing
 // - Large package publishing
-// - Tests: forking
 // - Alt backend: real network
 // - Additional options for certain commands
+// - Tests: forking
+// - Test-only APIs
+//   - rotate key
+//   - set resource
+//   - set resource in group
 
 function stripNodeModulesBin(pathEnv: string) {
   return pathEnv
@@ -70,8 +74,8 @@ export function runCommand(
 
     throw new Error(
       `Process exited with code ${result.status}.\n\n` +
-      `Stdout:\n${stdout}\n` +
-      `Stderr:\n${stderr}`,
+        `Stdout:\n${stdout}\n` +
+        `Stderr:\n${stderr}`,
     );
   }
 
@@ -129,6 +133,7 @@ function getMovePackageNameFromManifest(packageDir: string): string {
 interface TestHarnessOptions {
   network?: string;
   apiKey?: string;
+  networkVersion?: number | string | bigint;
 }
 
 interface MoveRunOptions {
@@ -237,8 +242,8 @@ class TestHarness {
   init_cli_profile(profile_name: string, privateKey?: string): void {
     const privKey = privateKey
       ? new Ed25519PrivateKey(
-        PrivateKey.formatPrivateKey(privateKey, PrivateKeyVariants.Ed25519),
-      )
+          PrivateKey.formatPrivateKey(privateKey, PrivateKeyVariants.Ed25519),
+        )
       : Ed25519PrivateKey.generate();
 
     const pubKey = privKey.publicKey();
@@ -305,10 +310,19 @@ class TestHarness {
     if (options.network && options.apiKey) {
       args.push("--network", options.network);
       args.push("--api-key", options.apiKey);
-    } else if (options.network || options.apiKey) {
-      throw new Error(
-        "Both network and apiKey must be provided together, or neither",
-      );
+
+      if (options.networkVersion) {
+        args.push("--network-version", options.networkVersion.toString());
+      }
+    } else {
+      if (options.network || options.apiKey) {
+        throw new Error(
+          "Both network and apiKey must be provided together, or neither",
+        );
+      }
+      if (options.networkVersion) {
+        throw new Error("networkVersion cannot be set when network is not set");
+      }
     }
 
     const res = runCommand(APTOS_BINARY, args, {

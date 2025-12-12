@@ -35,6 +35,8 @@ jobs:
 
     - name: Run Forklift Tests
       working-directory: packages/testsuite
+      env:
+        APTOS_API_KEY: ${{ secrets.APTOS_API_KEY }}
       run: |
         npm ci
         npm test
