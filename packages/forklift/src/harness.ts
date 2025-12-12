@@ -22,6 +22,13 @@ const APTOS_BINARY = "aptos";
 
 const path = require("path");
 
+// TODOs
+// - Object code publishing
+// - Large package publishing
+// - Forking
+// - Poisoning
+// - Alt backend: real network
+
 function stripNodeModulesBin(pathEnv: string) {
   return pathEnv
     .split(path.delimiter)
@@ -58,8 +65,13 @@ export function runCommand(
   }
 
   if (result.status !== 0) {
+    const stdout = result.stdout || "(no output)";
+    const stderr = result.stderr || "(no output)";
+
     throw new Error(
-      `Process exited with code ${result.status}.\n\nStdout:\n${result.stdout}\nStderr:\n${result.stderr}`,
+      `Process exited with code ${result.status}.\n\n` +
+      `Stdout:\n${stdout}\n` +
+      `Stderr:\n${stderr}`,
     );
   }
 
@@ -96,7 +108,7 @@ export function runCommand(
  *
  * @returns The package name as a string.
  */
-function getPackageName(packageDir: string): string {
+function getMovePackageNameFromManifest(packageDir: string): string {
   const moveTomlPath = join(packageDir, "Move.toml");
   if (!existsSync(moveTomlPath)) {
     throw new Error(`Move.toml not found at ${moveTomlPath}`);
@@ -167,19 +179,19 @@ interface PublishOptions {
  * Under the hood, it uses the Transaction Simulation Session feature from the Aptos CLI.
  */
 class TestHarness {
-  private tempDir: string;
+  private workingDir: string;
 
-  getTempDir(): string {
-    return this.tempDir;
+  getWorkingDir(): string {
+    return this.workingDir;
   }
 
   getSessionPath(): string {
-    return join(this.tempDir, "data");
+    return join(this.workingDir, "data");
   }
 
   constructor(options: TestHarnessOptions = {}) {
     // Create a temporary directory with a unique name
-    this.tempDir = mkdtempSync(join(tmpdir(), "move-test-"));
+    this.workingDir = mkdtempSync(join(tmpdir(), "move-test-"));
 
     this.init_cli_profile("default");
     this.init_session(options);
@@ -199,8 +211,8 @@ class TestHarness {
   init_cli_profile(profile_name: string, privateKey?: string): void {
     const privKey = privateKey
       ? new Ed25519PrivateKey(
-          PrivateKey.formatPrivateKey(privateKey, PrivateKeyVariants.Ed25519),
-        )
+        PrivateKey.formatPrivateKey(privateKey, PrivateKeyVariants.Ed25519),
+      )
       : Ed25519PrivateKey.generate();
 
     const pubKey = privKey.publicKey();
@@ -216,7 +228,7 @@ class TestHarness {
       public_key: "ed25519-pub-" + pubKey.toString(),
     };
 
-    const aptosDir = join(this.tempDir, ".aptos");
+    const aptosDir = join(this.workingDir, ".aptos");
     const configPath = join(aptosDir, "config.yaml");
 
     if (!existsSync(aptosDir)) {
@@ -274,7 +286,7 @@ class TestHarness {
     }
 
     const res = runCommand(APTOS_BINARY, args, {
-      cwd: this.tempDir,
+      cwd: this.workingDir,
     });
 
     if (!res || res.Result !== "Success") {
@@ -303,7 +315,7 @@ class TestHarness {
         "--amount", amount.toString(),
       ],
       {
-        cwd: this.tempDir,
+        cwd: this.workingDir,
       },
     );
 
@@ -360,7 +372,7 @@ class TestHarness {
     }
 
     const res = runCommand(APTOS_BINARY, args, {
-      cwd: this.tempDir,
+      cwd: this.workingDir,
     });
 
     return res;
@@ -391,10 +403,10 @@ class TestHarness {
     }
 
     runCommand(APTOS_BINARY, compileArgs, {
-      cwd: this.tempDir,
+      cwd: this.workingDir,
     });
 
-    const packageName = getPackageName(options.packageDir);
+    const packageName = getMovePackageNameFromManifest(options.packageDir);
 
     // prettier-ignore
     const runArgs = [
@@ -432,7 +444,7 @@ class TestHarness {
     }
 
     const res = runCommand(APTOS_BINARY, runArgs, {
-      cwd: this.tempDir,
+      cwd: this.workingDir,
     });
 
     return res;
@@ -469,7 +481,7 @@ class TestHarness {
     }
 
     const res = runCommand(APTOS_BINARY, args, {
-      cwd: this.tempDir,
+      cwd: this.workingDir,
     });
 
     return res;
@@ -501,7 +513,7 @@ class TestHarness {
     }
 
     const res = runCommand(APTOS_BINARY, args, {
-      cwd: this.tempDir,
+      cwd: this.workingDir,
     });
 
     return res;
@@ -534,7 +546,7 @@ class TestHarness {
       args.push("--derived-object-address", derivedObjectAddress);
     }
 
-    return runCommand(APTOS_BINARY, args, { cwd: this.tempDir });
+    return runCommand(APTOS_BINARY, args, { cwd: this.workingDir });
   }
 
   /**
@@ -555,7 +567,7 @@ class TestHarness {
       resource,
     ];
 
-    return runCommand(APTOS_BINARY, args, { cwd: this.tempDir });
+    return runCommand(APTOS_BINARY, args, { cwd: this.workingDir });
   }
 
   /**
@@ -584,10 +596,10 @@ class TestHarness {
 
   cleanup(): void {
     try {
-      rmSync(this.tempDir, { recursive: true, force: true });
+      rmSync(this.workingDir, { recursive: true, force: true });
     } catch (error) {
       console.warn(
-        `Failed to cleanup temporary directory ${this.tempDir}:`,
+        `Failed to cleanup temporary directory ${this.workingDir}:`,
         error,
       );
     }
@@ -633,7 +645,7 @@ class TestHarness {
    */
   getAccountAddress(profile: string): string {
     const res = runCommand(APTOS_BINARY, ["config", "show-profiles"], {
-      cwd: this.tempDir,
+      cwd: this.workingDir,
     });
 
     if (!res || !res.Result || !res.Result[profile]) {

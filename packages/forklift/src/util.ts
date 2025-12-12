@@ -1,9 +1,3 @@
-import { resolve } from "path";
-
-export function getMoveRoot(): string {
-  return resolve(__dirname, "../../");
-}
-
 export function assertTxnSuccess(res: any): void {
   try {
     expect(res.Result.success).toBe(true);
