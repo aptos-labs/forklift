@@ -25,9 +25,9 @@ const path = require("path");
 // TODOs
 // - Object code publishing
 // - Large package publishing
-// - Forking
-// - Poisoning
+// - Tests: forking
 // - Alt backend: real network
+// - Additional options for certain commands
 
 function stripNodeModulesBin(pathEnv: string) {
   return pathEnv
@@ -177,9 +177,16 @@ interface PublishOptions {
  * state for simulations.
  *
  * Under the hood, it uses the Transaction Simulation Session feature from the Aptos CLI.
+ *
+ * To prevent misuse of the harness after it has been cleaned up, the class uses a Proxy
+ * pattern. The constructor returns a Proxy that intercepts all method calls. If the
+ * `cleanup()` method has been called (setting `poisoned` to true), any subsequent method
+ * call (except `cleanup` itself) will throw an error. This ensures that the harness
+ * cannot be used to interact with a non-existent temporary directory.
  */
 class TestHarness {
   private workingDir: string;
+  private poisoned: boolean;
 
   getWorkingDir(): string {
     return this.workingDir;
@@ -192,10 +199,29 @@ class TestHarness {
   constructor(options: TestHarnessOptions = {}) {
     // Create a temporary directory with a unique name
     this.workingDir = mkdtempSync(join(tmpdir(), "move-test-"));
+    this.poisoned = false;
 
     this.init_cli_profile("default");
     this.init_session(options);
     this.fundAccount("default", 10000000000 /* 100 APT */);
+
+    return new Proxy(this, {
+      get: (target, prop, receiver) => {
+        const value = Reflect.get(target, prop, receiver);
+        if (
+          (target as any).poisoned &&
+          typeof value === "function" &&
+          prop !== "cleanup"
+        ) {
+          return () => {
+            throw new Error(
+              "TestHarness is poisoned: cleanup() has already been called",
+            );
+          };
+        }
+        return value;
+      },
+    });
   }
 
   /**
@@ -595,6 +621,7 @@ class TestHarness {
   }
 
   cleanup(): void {
+    this.poisoned = true;
     try {
       rmSync(this.workingDir, { recursive: true, force: true });
     } catch (error) {
