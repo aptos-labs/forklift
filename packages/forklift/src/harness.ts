@@ -168,6 +168,26 @@ interface ViewOptions {
 interface PublishOptions {
   profile: string;
   packageDir: string;
+
+  namedAddresses?: { [key: string]: string };
+  includedArtifacts?: string;
+}
+
+interface DeployCodeObjectOptions {
+  profile: string;
+  packageDir: string;
+  packageAddressName: string;
+
+  namedAddresses?: { [key: string]: string };
+  includedArtifacts?: string;
+}
+
+interface UpgradeCodeObjectOptions {
+  profile: string;
+  packageDir: string;
+  packageAddressName: string;
+  objectAddress: string;
+
   namedAddresses?: { [key: string]: string };
   includedArtifacts?: string;
 }
@@ -528,6 +548,77 @@ class TestHarness {
   }
 
   /**
+   * Deploys a Move package to an object.
+   *
+   * @returns The deployment result as a JSON object
+   * @throws Error if running into non-execution failures.
+   */
+  deployCodeObject(options: DeployCodeObjectOptions): any {
+    // prettier-ignore
+    const args = [
+      "move", "deploy-object",
+      "--assume-yes",
+      "--session", this.getSessionPath(),
+      "--profile", options.profile,
+      "--package-dir", options.packageDir,
+      "--address-name", options.packageAddressName,
+    ];
+
+    if (options.namedAddresses) {
+      args.push("--named-addresses");
+      args.push(
+        Object.entries(options.namedAddresses)
+          .map(([key, value]) => `${key}=${value}`)
+          .join(","),
+      );
+    }
+
+    if (options.includedArtifacts) {
+      args.push("--included-artifacts");
+      args.push(options.includedArtifacts);
+    }
+
+    const res = runCommand(APTOS_BINARY, args, {
+      cwd: this.workingDir,
+    });
+
+    return res;
+  }
+
+  upgradeCodeObject(options: UpgradeCodeObjectOptions): any {
+    // prettier-ignore
+    const args = [
+      "move", "upgrade-object",
+      "--assume-yes",
+      "--session", this.getSessionPath(),
+      "--profile", options.profile,
+      "--package-dir", options.packageDir,
+      "--address-name", options.packageAddressName,
+      "--object-address", options.objectAddress,
+    ];
+
+    if (options.namedAddresses) {
+      args.push("--named-addresses");
+      args.push(
+        Object.entries(options.namedAddresses)
+          .map(([key, value]) => `${key}=${value}`)
+          .join(","),
+      );
+    }
+
+    if (options.includedArtifacts) {
+      args.push("--included-artifacts");
+      args.push(options.includedArtifacts);
+    }
+
+    const res = runCommand(APTOS_BINARY, args, {
+      cwd: this.workingDir,
+    });
+
+    return res;
+  }
+
+  /**
    * Runs a read-only Move function identified by its fully qualified function ID
    * with the specified arguments and type arguments.
    *
@@ -708,4 +799,5 @@ export {
   type MoveRunOptions,
   type ViewOptions,
   type PublishOptions,
+  type DeployCodeObjectOptions as DeployObjectOptions,
 };
