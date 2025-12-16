@@ -23,11 +23,9 @@ const APTOS_BINARY = "aptos";
 const path = require("path");
 
 // TODOs
-// - Object code publishing
 // - Large package publishing
 // - Alt backend: real network
-// - Additional options for certain commands
-// - Tests: forking
+// - Extra flags for certain commands
 // - Test-only APIs
 //   - rotate key
 //   - set resource
@@ -74,8 +72,8 @@ export function runCommand(
 
     throw new Error(
       `Process exited with code ${result.status}.\n\n` +
-        `Stdout:\n${stdout}\n` +
-        `Stderr:\n${stderr}`,
+      `Stdout:\n${stdout}\n` +
+      `Stderr:\n${stderr}`,
     );
   }
 
@@ -137,7 +135,7 @@ interface TestHarnessOptions {
 }
 
 interface MoveRunOptions {
-  profile: string;
+  sender: string;
   functionId: string;
   typeArgs?: string[];
   args?: string[];
@@ -147,7 +145,7 @@ interface MoveRunOptions {
 }
 
 interface MoveRunScriptOptions {
-  profile: string;
+  sender: string;
   scriptPath?: string;
   packageDir: string;
   scriptName: string;
@@ -166,7 +164,7 @@ interface ViewOptions {
 }
 
 interface PublishOptions {
-  profile: string;
+  sender: string;
   packageDir: string;
 
   namedAddresses?: { [key: string]: string };
@@ -174,7 +172,7 @@ interface PublishOptions {
 }
 
 interface DeployCodeObjectOptions {
-  profile: string;
+  sender: string;
   packageDir: string;
   packageAddressName: string;
 
@@ -183,7 +181,7 @@ interface DeployCodeObjectOptions {
 }
 
 interface UpgradeCodeObjectOptions {
-  profile: string;
+  sender: string;
   packageDir: string;
   packageAddressName: string;
   objectAddress: string;
@@ -262,8 +260,8 @@ class TestHarness {
   init_cli_profile(profile_name: string, privateKey?: string): void {
     const privKey = privateKey
       ? new Ed25519PrivateKey(
-          PrivateKey.formatPrivateKey(privateKey, PrivateKeyVariants.Ed25519),
-        )
+        PrivateKey.formatPrivateKey(privateKey, PrivateKeyVariants.Ed25519),
+      )
       : Ed25519PrivateKey.generate();
 
     const pubKey = privKey.publicKey();
@@ -400,7 +398,7 @@ class TestHarness {
     const args = [
       "move", "run",
       "--session", this.getSessionPath(),
-      "--profile", options.profile,
+      "--profile", options.sender,
       "--function-id", options.functionId,
     ];
 
@@ -472,7 +470,7 @@ class TestHarness {
     const runArgs = [
       "move", "run-script",
       "--session", this.getSessionPath(),
-      "--profile", options.profile,
+      "--profile", options.sender,
       "--compiled-script-path", join(options.packageDir, "build", packageName, "bytecode_scripts", options.scriptName + ".mv"),
     ];
 
@@ -522,7 +520,7 @@ class TestHarness {
     const args = [
       "move", "publish",
       "--session", this.getSessionPath(),
-      "--profile", options.profile,
+      "--profile", options.sender,
       "--package-dir", options.packageDir,
     ];
 
@@ -559,7 +557,7 @@ class TestHarness {
       "move", "deploy-object",
       "--assume-yes",
       "--session", this.getSessionPath(),
-      "--profile", options.profile,
+      "--profile", options.sender,
       "--package-dir", options.packageDir,
       "--address-name", options.packageAddressName,
     ];
@@ -585,13 +583,19 @@ class TestHarness {
     return res;
   }
 
+  /**
+   * Upgrades a code object.
+   *
+   * @returns The upgrade result as a JSON object
+   * @throws Error if running into non-execution failures.
+   */
   upgradeCodeObject(options: UpgradeCodeObjectOptions): any {
     // prettier-ignore
     const args = [
       "move", "upgrade-object",
       "--assume-yes",
       "--session", this.getSessionPath(),
-      "--profile", options.profile,
+      "--profile", options.sender,
       "--package-dir", options.packageDir,
       "--address-name", options.packageAddressName,
       "--object-address", options.objectAddress,

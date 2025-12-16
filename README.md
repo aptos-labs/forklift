@@ -16,7 +16,7 @@ Designed for modern CI/CD pipelines, Forklift lets you simulate transactions aga
 
 - **Node.js**: Minimum v18.
 - **Aptos CLI**: You must have the [Aptos CLI](https://aptos.dev/tools/aptos-cli/) installed and available in your `PATH`.
-  - Ensure you have a version that supports `transaction simulation sessions` (7.9.0 and above).
+  - Ensure you have a version that supports `transaction simulation sessions` (7.12.0 and above).
 
 ## Installation
 
