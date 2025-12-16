@@ -23,11 +23,9 @@ const APTOS_BINARY = "aptos";
 const path = require("path");
 
 // TODOs
-// - Object code publishing
 // - Large package publishing
 // - Alt backend: real network
-// - Additional options for certain commands
-// - Tests: forking
+// - Extra flags for certain commands
 // - Test-only APIs
 //   - rotate key
 //   - set resource
@@ -137,7 +135,7 @@ interface TestHarnessOptions {
 }
 
 interface MoveRunOptions {
-  profile: string;
+  sender: string;
   functionId: string;
   typeArgs?: string[];
   args?: string[];
@@ -147,7 +145,7 @@ interface MoveRunOptions {
 }
 
 interface MoveRunScriptOptions {
-  profile: string;
+  sender: string;
   scriptPath?: string;
   packageDir: string;
   scriptName: string;
@@ -166,30 +164,36 @@ interface ViewOptions {
 }
 
 interface PublishOptions {
-  profile: string;
+  sender: string;
   packageDir: string;
 
   namedAddresses?: { [key: string]: string };
   includedArtifacts?: string;
+
+  chunked?: boolean;
 }
 
 interface DeployCodeObjectOptions {
-  profile: string;
+  sender: string;
   packageDir: string;
   packageAddressName: string;
 
   namedAddresses?: { [key: string]: string };
   includedArtifacts?: string;
+
+  chunked?: boolean;
 }
 
 interface UpgradeCodeObjectOptions {
-  profile: string;
+  sender: string;
   packageDir: string;
   packageAddressName: string;
   objectAddress: string;
 
   namedAddresses?: { [key: string]: string };
   includedArtifacts?: string;
+
+  chunked?: boolean;
 }
 
 /**
@@ -400,7 +404,7 @@ class TestHarness {
     const args = [
       "move", "run",
       "--session", this.getSessionPath(),
-      "--profile", options.profile,
+      "--profile", options.sender,
       "--function-id", options.functionId,
     ];
 
@@ -472,7 +476,7 @@ class TestHarness {
     const runArgs = [
       "move", "run-script",
       "--session", this.getSessionPath(),
-      "--profile", options.profile,
+      "--profile", options.sender,
       "--compiled-script-path", join(options.packageDir, "build", packageName, "bytecode_scripts", options.scriptName + ".mv"),
     ];
 
@@ -522,7 +526,7 @@ class TestHarness {
     const args = [
       "move", "publish",
       "--session", this.getSessionPath(),
-      "--profile", options.profile,
+      "--profile", options.sender,
       "--package-dir", options.packageDir,
     ];
 
@@ -538,6 +542,10 @@ class TestHarness {
     if (options.includedArtifacts) {
       args.push("--included-artifacts");
       args.push(options.includedArtifacts);
+    }
+
+    if (options.chunked) {
+      args.push("--chunked-publish");
     }
 
     const res = runCommand(APTOS_BINARY, args, {
@@ -559,7 +567,7 @@ class TestHarness {
       "move", "deploy-object",
       "--assume-yes",
       "--session", this.getSessionPath(),
-      "--profile", options.profile,
+      "--profile", options.sender,
       "--package-dir", options.packageDir,
       "--address-name", options.packageAddressName,
     ];
@@ -578,6 +586,10 @@ class TestHarness {
       args.push(options.includedArtifacts);
     }
 
+    if (options.chunked) {
+      args.push("--chunked-publish");
+    }
+
     const res = runCommand(APTOS_BINARY, args, {
       cwd: this.workingDir,
     });
@@ -585,13 +597,19 @@ class TestHarness {
     return res;
   }
 
+  /**
+   * Upgrades a code object.
+   *
+   * @returns The upgrade result as a JSON object
+   * @throws Error if running into non-execution failures.
+   */
   upgradeCodeObject(options: UpgradeCodeObjectOptions): any {
     // prettier-ignore
     const args = [
       "move", "upgrade-object",
       "--assume-yes",
       "--session", this.getSessionPath(),
-      "--profile", options.profile,
+      "--profile", options.sender,
       "--package-dir", options.packageDir,
       "--address-name", options.packageAddressName,
       "--object-address", options.objectAddress,
@@ -609,6 +627,10 @@ class TestHarness {
     if (options.includedArtifacts) {
       args.push("--included-artifacts");
       args.push(options.includedArtifacts);
+    }
+
+    if (options.chunked) {
+      args.push("--chunked-publish");
     }
 
     const res = runCommand(APTOS_BINARY, args, {

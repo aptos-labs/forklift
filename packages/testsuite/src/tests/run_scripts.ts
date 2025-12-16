@@ -11,7 +11,7 @@ describe("publish, set message, and view message", () => {
   it("publish package", () => {
     const packageDir = path.join(__dirname, "../../move_packages/message");
     const publishRes = harness.publishPackage({
-      profile: "default",
+      sender: "default",
       packageDir,
       namedAddresses: {
         simple_message: "default",
@@ -22,7 +22,7 @@ describe("publish, set message, and view message", () => {
 
   it("set message via script", () => {
     const runRes = harness.runMoveScript({
-      profile: "default",
+      sender: "default",
       packageDir: path.join(__dirname, "../../move_packages/message"),
       scriptName: "script_hello_aptos",
       namedAddresses: {
