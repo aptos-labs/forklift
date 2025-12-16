@@ -11,7 +11,7 @@ describe("publish, set message, and view message", () => {
   it("publish package", () => {
     const packageDir = path.join(__dirname, "../../move_packages/message");
     const publishRes = harness.publishPackage({
-      profile: "default",
+      sender: "default",
       packageDir,
       namedAddresses: {
         simple_message: "default",
@@ -23,7 +23,7 @@ describe("publish, set message, and view message", () => {
   const message = "Hello, Aptos!";
   it("set message", () => {
     const runRes = harness.runMoveFunction({
-      profile: "default",
+      sender: "default",
       functionId: `default::message::set_message`,
       args: [`string:${message}`],
     });

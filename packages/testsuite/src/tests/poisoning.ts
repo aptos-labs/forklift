@@ -25,7 +25,7 @@ describe("poisoning", () => {
   it("should throw when running move function after cleanup", () => {
     expect(() =>
       harness.runMoveFunction({
-        profile: "default",
+        sender: "default",
         functionId: "0x1::coin::transfer",
       }),
     ).toThrow(EXPECTED_ERROR);
@@ -34,7 +34,7 @@ describe("poisoning", () => {
   it("should throw when running move script after cleanup", () => {
     expect(() =>
       harness.runMoveScript({
-        profile: "default",
+        sender: "default",
         packageDir: ".",
         scriptName: "test",
       }),
@@ -44,7 +44,7 @@ describe("poisoning", () => {
   it("should throw when publishing package after cleanup", () => {
     expect(() =>
       harness.publishPackage({
-        profile: "default",
+        sender: "default",
         packageDir: ".",
       }),
     ).toThrow(EXPECTED_ERROR);

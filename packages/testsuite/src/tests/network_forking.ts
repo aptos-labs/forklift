@@ -27,7 +27,7 @@ const apiKey = process.env.APTOS_API_KEY;
     harness.fundAccount(sender, 100000000);
 
     const res = harness.runMoveFunction({
-      profile: sender,
+      sender: sender,
       functionId: "0x1::aptos_account::transfer",
       args: [`address:${testnetAccountAddr}`, "u64:2000"],
     });

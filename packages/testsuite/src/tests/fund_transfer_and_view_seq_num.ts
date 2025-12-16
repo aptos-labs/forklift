@@ -13,7 +13,7 @@ describe("fund, transfer, and view sequence number", () => {
 
   it("transfer 100 Octa to self", () => {
     const res = harness.runMoveFunction({
-      profile: "default",
+      sender: "default",
       functionId: "0x1::aptos_account::transfer",
       args: ["address:default", "u64:100"],
     });

@@ -16,7 +16,7 @@ describe("publish package", () => {
     const packageDir = path.resolve(__dirname, "../../move_packages/message");
 
     harness.publishPackage({
-      profile: alice,
+      sender: alice,
       packageDir,
       namedAddresses: {
         simple_message: alice,
@@ -40,7 +40,7 @@ describe("publish package", () => {
     const packageDir = path.resolve(__dirname, "../../move_packages/message");
 
     harness.publishPackage({
-      profile: alice,
+      sender: alice,
       packageDir,
       namedAddresses: {
         simple_message: alice,
@@ -65,7 +65,7 @@ describe("publish package", () => {
 
     expect(() => {
       harness.publishPackage({
-        profile: alice,
+        sender: alice,
         packageDir: invalidPackageDir,
         namedAddresses: {
           simple_message: alice,
@@ -79,7 +79,7 @@ describe("publish package", () => {
 
     expect(() => {
       harness.publishPackage({
-        profile: alice,
+        sender: alice,
         packageDir,
       });
     }).toThrow();
@@ -93,7 +93,7 @@ describe("publish package", () => {
     const packageDir = path.resolve(__dirname, "../../move_packages/message");
 
     harness.publishPackage({
-      profile: artifactProfile,
+      sender: artifactProfile,
       packageDir,
       namedAddresses: {
         simple_message: harness.getAccountAddress(artifactProfile),

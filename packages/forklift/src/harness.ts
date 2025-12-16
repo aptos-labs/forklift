@@ -72,8 +72,8 @@ export function runCommand(
 
     throw new Error(
       `Process exited with code ${result.status}.\n\n` +
-      `Stdout:\n${stdout}\n` +
-      `Stderr:\n${stderr}`,
+        `Stdout:\n${stdout}\n` +
+        `Stderr:\n${stderr}`,
     );
   }
 
@@ -169,6 +169,8 @@ interface PublishOptions {
 
   namedAddresses?: { [key: string]: string };
   includedArtifacts?: string;
+
+  chunked?: boolean;
 }
 
 interface DeployCodeObjectOptions {
@@ -178,6 +180,8 @@ interface DeployCodeObjectOptions {
 
   namedAddresses?: { [key: string]: string };
   includedArtifacts?: string;
+
+  chunked?: boolean;
 }
 
 interface UpgradeCodeObjectOptions {
@@ -188,6 +192,8 @@ interface UpgradeCodeObjectOptions {
 
   namedAddresses?: { [key: string]: string };
   includedArtifacts?: string;
+
+  chunked?: boolean;
 }
 
 /**
@@ -260,8 +266,8 @@ class TestHarness {
   init_cli_profile(profile_name: string, privateKey?: string): void {
     const privKey = privateKey
       ? new Ed25519PrivateKey(
-        PrivateKey.formatPrivateKey(privateKey, PrivateKeyVariants.Ed25519),
-      )
+          PrivateKey.formatPrivateKey(privateKey, PrivateKeyVariants.Ed25519),
+        )
       : Ed25519PrivateKey.generate();
 
     const pubKey = privKey.publicKey();
@@ -538,6 +544,10 @@ class TestHarness {
       args.push(options.includedArtifacts);
     }
 
+    if (options.chunked) {
+      args.push("--chunked-publish");
+    }
+
     const res = runCommand(APTOS_BINARY, args, {
       cwd: this.workingDir,
     });
@@ -574,6 +584,10 @@ class TestHarness {
     if (options.includedArtifacts) {
       args.push("--included-artifacts");
       args.push(options.includedArtifacts);
+    }
+
+    if (options.chunked) {
+      args.push("--chunked-publish");
     }
 
     const res = runCommand(APTOS_BINARY, args, {
@@ -613,6 +627,10 @@ class TestHarness {
     if (options.includedArtifacts) {
       args.push("--included-artifacts");
       args.push(options.includedArtifacts);
+    }
+
+    if (options.chunked) {
+      args.push("--chunked-publish");
     }
 
     const res = runCommand(APTOS_BINARY, args, {
