@@ -43,7 +43,7 @@ describe.skip("code object (large)", () => {
       chunked: true,
     });
     assertTxnSuccess(res);
-    objectAddress = res.Result.object_address;
+    objectAddress = res.Result.deployed_object_address;
     expect(objectAddress).toBeDefined();
 
     const registry = harness.viewResource(
