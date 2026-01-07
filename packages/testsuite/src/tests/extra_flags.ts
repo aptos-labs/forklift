@@ -1,4 +1,4 @@
-import { TestHarness } from "forklift";
+import { Harness } from "forklift";
 import * as path from "path";
 
 /**
@@ -11,7 +11,7 @@ import * as path from "path";
  * to throw a JSON parsing error, confirming that our flag was indeed received and processed.
  */
 describe("Extra flags support", () => {
-  const harness = new TestHarness();
+  const harness = new Harness();
   const sender = "alice";
   const packageDir = path.resolve(__dirname, "../../move_packages/message");
 

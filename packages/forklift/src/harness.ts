@@ -70,8 +70,8 @@ export function runCommand(
 
     throw new Error(
       `Process exited with code ${result.status}.\n\n` +
-        `Stdout:\n${stdout}\n` +
-        `Stderr:\n${stderr}`,
+      `Stdout:\n${stdout}\n` +
+      `Stderr:\n${stderr}`,
     );
   }
 
@@ -126,7 +126,7 @@ function getMovePackageNameFromManifest(packageDir: string): string {
   }
 }
 
-interface TestHarnessOptions {
+interface HarnessOptions {
   network?: string;
   apiKey?: string;
   networkVersion?: number | string | bigint;
@@ -218,7 +218,7 @@ interface UpgradeCodeObjectOptions {
  * call (except `cleanup` itself) will throw an error. This ensures that the harness
  * cannot be used to interact with a non-existent temporary directory.
  */
-class TestHarness {
+class Harness {
   private workingDir: string;
   private poisoned: boolean;
 
@@ -230,7 +230,7 @@ class TestHarness {
     return join(this.workingDir, "data");
   }
 
-  constructor(options: TestHarnessOptions = {}) {
+  constructor(options: HarnessOptions = {}) {
     // Create a temporary directory with a unique name
     this.workingDir = mkdtempSync(join(tmpdir(), "move-test-"));
     this.poisoned = false;
@@ -249,7 +249,7 @@ class TestHarness {
         ) {
           return () => {
             throw new Error(
-              "TestHarness is poisoned: cleanup() has already been called",
+              "Harness is poisoned: cleanup() has already been called",
             );
           };
         }
@@ -271,8 +271,8 @@ class TestHarness {
   init_cli_profile(profile_name: string, privateKey?: string): void {
     const privKey = privateKey
       ? new Ed25519PrivateKey(
-          PrivateKey.formatPrivateKey(privateKey, PrivateKeyVariants.Ed25519),
-        )
+        PrivateKey.formatPrivateKey(privateKey, PrivateKeyVariants.Ed25519),
+      )
       : Ed25519PrivateKey.generate();
 
     const pubKey = privKey.publicKey();
@@ -332,7 +332,7 @@ class TestHarness {
    *
    * @throws Error if both network and apiKey are not provided together, or if the initialization fails
    */
-  private init_session(options: TestHarnessOptions): void {
+  private init_session(options: HarnessOptions): void {
     const args = ["move", "sim", "init", "--path", this.getSessionPath()];
 
     // Add network and API key if both are provided
@@ -849,10 +849,12 @@ class TestHarness {
 }
 
 export {
-  TestHarness,
-  type TestHarnessOptions,
+  Harness,
+  type HarnessOptions,
   type MoveRunOptions,
   type ViewOptions,
   type PublishOptions,
-  type DeployCodeObjectOptions as DeployObjectOptions,
+  type DeployCodeObjectOptions,
+  type UpgradeCodeObjectOptions,
+  type MoveRunScriptOptions,
 };

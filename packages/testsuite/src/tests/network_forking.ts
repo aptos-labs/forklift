@@ -1,15 +1,15 @@
-import { assertTxnSuccess, TestHarness } from "forklift";
+import { assertTxnSuccess, Harness } from "forklift";
 
 const apiKey = process.env.APTOS_API_KEY;
 
 (apiKey ? describe : describe.skip)("network forking", () => {
-  let harness: TestHarness;
+  let harness: Harness;
 
   const testnetAccountAddr =
     "0x3f9e0589ca0668a5273b86bfcb5f357164408a889bc733b309cf1901098c8ce5";
 
   it("should initialize harness", () => {
-    harness = new TestHarness({
+    harness = new Harness({
       network: "testnet",
       apiKey: apiKey,
       networkVersion: 7111477749,

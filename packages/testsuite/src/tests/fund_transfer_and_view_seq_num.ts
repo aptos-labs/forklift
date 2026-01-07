@@ -1,7 +1,7 @@
-import { assertTxnSuccess, TestHarness } from "forklift";
+import { assertTxnSuccess, Harness } from "forklift";
 
 describe("fund, transfer, and view sequence number", () => {
-  let harness: TestHarness = new TestHarness();
+  let harness: Harness = new Harness();
 
   afterAll(() => {
     harness.cleanup();

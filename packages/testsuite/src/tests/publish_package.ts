@@ -1,8 +1,8 @@
-import { TestHarness } from "forklift";
+import { Harness } from "forklift";
 import * as path from "path";
 
 describe("publish package", () => {
-  const harness = new TestHarness();
+  const harness = new Harness();
   const alice = "alice";
 
   afterAll(() => {

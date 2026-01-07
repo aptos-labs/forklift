@@ -1,8 +1,8 @@
-import { assertTxnSuccess, TestHarness } from "forklift";
+import { assertTxnSuccess, Harness } from "forklift";
 import * as path from "path";
 
 describe("publish, set message, and view message", () => {
-  let harness: TestHarness = new TestHarness();
+  let harness: Harness = new Harness();
 
   afterAll(() => {
     harness.cleanup();
