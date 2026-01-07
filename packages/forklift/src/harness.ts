@@ -23,9 +23,7 @@ const APTOS_BINARY = "aptos";
 const path = require("path");
 
 // TODOs
-// - Large package publishing
 // - Alt backend: real network
-// - Extra flags for certain commands
 // - Test-only APIs
 //   - rotate key
 //   - set resource
@@ -142,6 +140,7 @@ interface MoveRunOptions {
   gasUnitPrice?: number;
   maxGas?: number;
   expirationSecs?: number;
+  extraFlags?: string[];
 }
 
 interface MoveRunScriptOptions {
@@ -155,12 +154,15 @@ interface MoveRunScriptOptions {
   gasUnitPrice?: number;
   maxGas?: number;
   expirationSecs?: number;
+  compileExtraFlags?: string[];
+  runExtraFlags?: string[];
 }
 
 interface ViewOptions {
   functionId: string;
   typeArgs?: string[];
   args?: string[];
+  extraFlags?: string[];
 }
 
 interface PublishOptions {
@@ -171,6 +173,7 @@ interface PublishOptions {
   includedArtifacts?: string;
 
   chunked?: boolean;
+  extraFlags?: string[];
 }
 
 interface DeployCodeObjectOptions {
@@ -182,6 +185,7 @@ interface DeployCodeObjectOptions {
   includedArtifacts?: string;
 
   chunked?: boolean;
+  extraFlags?: string[];
 }
 
 interface UpgradeCodeObjectOptions {
@@ -194,6 +198,7 @@ interface UpgradeCodeObjectOptions {
   includedArtifacts?: string;
 
   chunked?: boolean;
+  extraFlags?: string[];
 }
 
 /**
@@ -435,6 +440,10 @@ class TestHarness {
       args.push("--expiration-secs", options.expirationSecs.toString());
     }
 
+    if (options.extraFlags) {
+      args.push(...options.extraFlags);
+    }
+
     const res = runCommand(APTOS_BINARY, args, {
       cwd: this.workingDir,
     });
@@ -464,6 +473,10 @@ class TestHarness {
           .map(([key, value]) => `${key}=${value}`)
           .join(","),
       );
+    }
+
+    if (options.compileExtraFlags) {
+      compileArgs.push(...options.compileExtraFlags);
     }
 
     runCommand(APTOS_BINARY, compileArgs, {
@@ -507,6 +520,10 @@ class TestHarness {
       runArgs.push("--expiration-secs", options.expirationSecs.toString());
     }
 
+    if (options.runExtraFlags) {
+      runArgs.push(...options.runExtraFlags);
+    }
+
     const res = runCommand(APTOS_BINARY, runArgs, {
       cwd: this.workingDir,
     });
@@ -546,6 +563,10 @@ class TestHarness {
 
     if (options.chunked) {
       args.push("--chunked-publish");
+    }
+
+    if (options.extraFlags) {
+      args.push(...options.extraFlags);
     }
 
     const res = runCommand(APTOS_BINARY, args, {
@@ -588,6 +609,10 @@ class TestHarness {
 
     if (options.chunked) {
       args.push("--chunked-publish");
+    }
+
+    if (options.extraFlags) {
+      args.push(...options.extraFlags);
     }
 
     const res = runCommand(APTOS_BINARY, args, {
@@ -633,6 +658,10 @@ class TestHarness {
       args.push("--chunked-publish");
     }
 
+    if (options.extraFlags) {
+      args.push(...options.extraFlags);
+    }
+
     const res = runCommand(APTOS_BINARY, args, {
       cwd: this.workingDir,
     });
@@ -663,6 +692,10 @@ class TestHarness {
     if (options.args && options.args.length > 0) {
       args.push("--args");
       args.push(...options.args);
+    }
+
+    if (options.extraFlags) {
+      args.push(...options.extraFlags);
     }
 
     const res = runCommand(APTOS_BINARY, args, {
