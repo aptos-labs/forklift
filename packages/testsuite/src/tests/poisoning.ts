@@ -1,7 +1,7 @@
 import { Harness } from "forklift";
 
 describe("poisoning", () => {
-  let harness = new Harness();
+  let harness = Harness.createLocal();
   harness.cleanup();
 
   const EXPECTED_ERROR = /poisoned/;

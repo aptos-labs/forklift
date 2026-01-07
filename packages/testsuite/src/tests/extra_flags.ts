@@ -11,7 +11,7 @@ import * as path from "path";
  * to throw a JSON parsing error, confirming that our flag was indeed received and processed.
  */
 describe("Extra flags support", () => {
-  const harness = new Harness();
+  const harness = Harness.createLocal();
   const sender = "alice";
   const packageDir = path.resolve(__dirname, "../../move_packages/message");
 

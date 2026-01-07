@@ -2,7 +2,7 @@ import { Harness } from "forklift";
 import { Ed25519PrivateKey, Account } from "@aptos-labs/ts-sdk";
 
 describe("initialize CLI profiles", () => {
-  const harness = new Harness();
+  const harness = Harness.createLocal();
 
   afterAll(() => {
     harness.cleanup();

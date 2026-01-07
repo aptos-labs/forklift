@@ -2,7 +2,7 @@ import { Harness } from "forklift";
 import * as path from "path";
 
 describe("publish package", () => {
-  const harness = new Harness();
+  const harness = Harness.createLocal();
   const alice = "alice";
 
   afterAll(() => {

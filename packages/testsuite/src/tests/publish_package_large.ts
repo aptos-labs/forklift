@@ -3,7 +3,7 @@ import * as path from "path";
 
 // FIXME: Need new version of Aptos CLI. Reenable once that gets released.
 describe.skip("publish package (large)", () => {
-  const harness = new Harness();
+  const harness = Harness.createLocal();
   const sender = "alice";
 
   afterAll(() => {

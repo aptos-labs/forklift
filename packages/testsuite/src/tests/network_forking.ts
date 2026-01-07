@@ -9,11 +9,7 @@ const apiKey = process.env.APTOS_API_KEY;
     "0x3f9e0589ca0668a5273b86bfcb5f357164408a889bc733b309cf1901098c8ce5";
 
   it("should initialize harness", () => {
-    harness = new Harness({
-      network: "testnet",
-      apiKey: apiKey,
-      networkVersion: 7111477749,
-    });
+    harness = Harness.createNetworkFork("testnet", apiKey!, 7111477749);
   });
 
   it("view account balance", () => {

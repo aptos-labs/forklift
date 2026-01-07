@@ -2,7 +2,7 @@ import { assertTxnSuccess, Harness } from "forklift";
 import * as path from "path";
 
 describe("publish, set message, and view message", () => {
-  let harness: Harness = new Harness();
+  let harness: Harness = Harness.createLocal();
 
   afterAll(() => {
     harness.cleanup();

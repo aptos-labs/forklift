@@ -3,7 +3,7 @@ import * as path from "path";
 
 // FIXME: Need new version of Aptos CLI. Reenable once that gets released.
 describe.skip("code object", () => {
-  const harness = new Harness();
+  const harness = Harness.createLocal();
   const sender = "alice";
   let objectAddress: string;
 

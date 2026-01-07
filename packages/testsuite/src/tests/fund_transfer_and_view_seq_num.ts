@@ -1,7 +1,7 @@
 import { assertTxnSuccess, Harness } from "forklift";
 
 describe("fund, transfer, and view sequence number", () => {
-  let harness: Harness = new Harness();
+  let harness: Harness = Harness.createLocal();
 
   afterAll(() => {
     harness.cleanup();

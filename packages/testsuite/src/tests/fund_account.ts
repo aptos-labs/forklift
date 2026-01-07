@@ -1,7 +1,7 @@
 import { Harness } from "forklift";
 
 describe("fund account", () => {
-  const harness = new Harness();
+  const harness = Harness.createLocal();
 
   afterAll(() => {
     harness.cleanup();
