@@ -1,7 +1,7 @@
-import { TestHarness } from "forklift";
+import { Harness } from "forklift";
 
 describe("fund account", () => {
-  const harness = new TestHarness();
+  const harness = Harness.createLocal();
 
   afterAll(() => {
     harness.cleanup();

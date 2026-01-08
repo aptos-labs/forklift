@@ -17,13 +17,14 @@ import {
 } from "@aptos-labs/ts-sdk";
 import yaml from "js-yaml";
 import { parse as parseToml } from "smol-toml";
+import assert from "assert";
 
 const APTOS_BINARY = "aptos";
 
 const path = require("path");
 
 // TODOs
-// - Alt backend: real network
+// - Tests for Livemode
 // - Test-only APIs
 //   - rotate key
 //   - set resource
@@ -126,10 +127,11 @@ function getMovePackageNameFromManifest(packageDir: string): string {
   }
 }
 
-interface TestHarnessOptions {
+interface HarnessOptions {
   network?: string;
   apiKey?: string;
   networkVersion?: number | string | bigint;
+  mode: "simulation" | "live";
 }
 
 interface MoveRunOptions {
@@ -202,15 +204,23 @@ interface UpgradeCodeObjectOptions {
 }
 
 /**
- * A test harness that provides a repeatable environment for testing Aptos transactions.
+ * A unified harness for interacting with Aptos networks or perform local or forking-based
+ * simulations.
  *
- * Offers methods to interact with the simulated network state and provides
- * "backdoor" APIs to manipulate the network state for testing purposes.
+ * Offers methods to interact with the network state and provides utilities for
+ * executing Move scripts, publishing packages, managing accounts etc.
  *
- * Supports both local state and remote state (network forking) as the base
- * state for simulations.
+ * Supports three modes of operation:
+ * 1. **Local Simulation**: Runs a fresh, local simulation session.
+ * 2. **Network Forking**: Forks the state of a real network (Mainnet/Testnet) for simulation.
+ * 3. **Live Mode**: Interacts directly with a real network (costs gas, changes state).
  *
- * Under the hood, it uses the Transaction Simulation Session feature from the Aptos CLI.
+ * Use the static factory methods to create a harness instance:
+ * - `Harness.createLocal()`
+ * - `Harness.createNetworkFork(network, apiKey)`
+ * - `Harness.createLive(network)`
+ *
+ * Under the hood, it uses the Aptos CLI to execute commands.
  *
  * To prevent misuse of the harness after it has been cleaned up, the class uses a Proxy
  * pattern. The constructor returns a Proxy that intercepts all method calls. If the
@@ -218,9 +228,12 @@ interface UpgradeCodeObjectOptions {
  * call (except `cleanup` itself) will throw an error. This ensures that the harness
  * cannot be used to interact with a non-existent temporary directory.
  */
-class TestHarness {
+class Harness {
   private workingDir: string;
   private poisoned: boolean;
+  private isLiveMode: boolean;
+  private network: string;
+  private restUrl: string;
 
   getWorkingDir(): string {
     return this.workingDir;
@@ -230,14 +243,40 @@ class TestHarness {
     return join(this.workingDir, "data");
   }
 
-  constructor(options: TestHarnessOptions = {}) {
+  private constructor(options: HarnessOptions) {
     // Create a temporary directory with a unique name
-    this.workingDir = mkdtempSync(join(tmpdir(), "move-test-"));
+    this.workingDir = mkdtempSync(join(tmpdir(), "forklift-"));
     this.poisoned = false;
+    this.isLiveMode = options.mode === "live";
+
+    if (this.isLiveMode) {
+      assert(options.network, "network is required in live mode");
+
+      const net = options.network.toLowerCase();
+      if (net === "mainnet") {
+        this.network = "Mainnet";
+        this.restUrl = "https://fullnode.mainnet.aptoslabs.com";
+      } else if (net === "testnet") {
+        this.network = "Testnet";
+        this.restUrl = "https://fullnode.testnet.aptoslabs.com";
+      } else if (net === "devnet") {
+        this.network = "Devnet";
+        this.restUrl = "https://fullnode.devnet.aptoslabs.com";
+      } else {
+        this.network = "Custom";
+        this.restUrl = options.network;
+      }
+    } else {
+      this.network = "Custom";
+      this.restUrl = "https://dummy.network.aptoslabs.com";
+    }
 
     this.init_cli_profile("default");
-    this.init_session(options);
-    this.fundAccount("default", 10000000000 /* 100 APT */);
+
+    if (!this.isLiveMode) {
+      this.init_session(options);
+      this.fundAccount("default", 10000000000 /* 100 APT */);
+    }
 
     return new Proxy(this, {
       get: (target, prop, receiver) => {
@@ -249,12 +288,63 @@ class TestHarness {
         ) {
           return () => {
             throw new Error(
-              "TestHarness is poisoned: cleanup() has already been called",
+              "Harness is poisoned: cleanup() has already been called",
             );
           };
         }
         return value;
       },
+    });
+  }
+
+  /**
+   * Creates a harness for local simulation.
+   *
+   * In this mode, the harness starts a fresh, local Aptos simulation session.
+   * This is useful for unit testing Move contracts in isolation.
+   *
+   * @returns A new Harness instance configured for local simulation.
+   */
+  static createLocal(): Harness {
+    return new Harness({ mode: "simulation" });
+  }
+
+  /**
+   * Creates a harness for network forking simulation.
+   *
+   * In this mode, the harness initializes a simulation session that is forked from a real network
+   * (e.g., Mainnet, Testnet) at a specific point in time (latest by default).
+   * This allows testing against real-world state without spending gas or affecting the real network.
+
+   * @returns A new Harness instance configured for network forking.
+   */
+  static createNetworkFork(
+    network: string,
+    apiKey: string,
+    networkVersion?: number | string | bigint,
+  ): Harness {
+    return new Harness({
+      mode: "simulation",
+      network,
+      apiKey,
+      networkVersion,
+    });
+  }
+
+  /**
+   * Creates a harness for interacting with a live network ("Live Mode").
+   *
+   * In this mode, the harness acts as a wrapper around the Aptos CLI to execute transactions
+   * directly against a real network (Mainnet, Testnet, Devnet, or a custom node).
+   *
+   * WARNING: Operations in this mode cost real gas and permanently alter the chain state.
+   *
+   * @returns A new Harness instance configured for live network interaction.
+   */
+  static createLive(network: string): Harness {
+    return new Harness({
+      mode: "live",
+      network,
     });
   }
 
@@ -281,8 +371,8 @@ class TestHarness {
     }).accountAddress.toString();
 
     let profile = {
-      network: "Local",
-      rest_url: "https://dummy.network.aptoslabs.com",
+      network: this.network,
+      rest_url: this.restUrl,
       account: addr,
       private_key: privKey.toAIP80String(),
       public_key: "ed25519-pub-" + pubKey.toString(),
@@ -332,7 +422,7 @@ class TestHarness {
    *
    * @throws Error if both network and apiKey are not provided together, or if the initialization fails
    */
-  private init_session(options: TestHarnessOptions): void {
+  private init_session(options: HarnessOptions): void {
     const args = ["move", "sim", "init", "--path", this.getSessionPath()];
 
     // Add network and API key if both are provided
@@ -374,6 +464,10 @@ class TestHarness {
    * @throws Error if the funding operation fails
    */
   fundAccount(account: string, amount: number | bigint | string): void {
+    if (this.isLiveMode) {
+      throw new Error("fundAccount is not supported in live mode");
+    }
+
     // prettier-ignore
     const res = runCommand(
       APTOS_BINARY,
@@ -408,10 +502,15 @@ class TestHarness {
     // prettier-ignore
     const args = [
       "move", "run",
-      "--session", this.getSessionPath(),
-      "--profile", options.sender,
-      "--function-id", options.functionId,
     ];
+
+    if (this.isLiveMode) {
+      args.push("--assume-yes");
+    } else {
+      args.push("--session", this.getSessionPath());
+    }
+
+    args.push("--profile", options.sender, "--function-id", options.functionId);
 
     // Add optional type arguments
     if (options.typeArgs && options.typeArgs.length > 0) {
@@ -488,10 +587,26 @@ class TestHarness {
     // prettier-ignore
     const runArgs = [
       "move", "run-script",
-      "--session", this.getSessionPath(),
-      "--profile", options.sender,
-      "--compiled-script-path", join(options.packageDir, "build", packageName, "bytecode_scripts", options.scriptName + ".mv"),
     ];
+
+    if (this.isLiveMode) {
+      runArgs.push("--assume-yes");
+    } else {
+      runArgs.push("--session", this.getSessionPath());
+    }
+
+    runArgs.push(
+      "--profile",
+      options.sender,
+      "--compiled-script-path",
+      join(
+        options.packageDir,
+        "build",
+        packageName,
+        "bytecode_scripts",
+        options.scriptName + ".mv",
+      ),
+    );
 
     // Add optional type arguments
     if (options.typeArgs && options.typeArgs.length > 0) {
@@ -542,10 +657,15 @@ class TestHarness {
     // prettier-ignore
     const args = [
       "move", "publish",
-      "--session", this.getSessionPath(),
-      "--profile", options.sender,
-      "--package-dir", options.packageDir,
     ];
+
+    if (this.isLiveMode) {
+      args.push("--assume-yes");
+    } else {
+      args.push("--session", this.getSessionPath());
+    }
+
+    args.push("--profile", options.sender, "--package-dir", options.packageDir);
 
     if (options.namedAddresses) {
       args.push("--named-addresses");
@@ -587,11 +707,20 @@ class TestHarness {
     const args = [
       "move", "deploy-object",
       "--assume-yes",
-      "--session", this.getSessionPath(),
-      "--profile", options.sender,
-      "--package-dir", options.packageDir,
-      "--address-name", options.packageAddressName,
     ];
+
+    if (!this.isLiveMode) {
+      args.push("--session", this.getSessionPath());
+    }
+
+    args.push(
+      "--profile",
+      options.sender,
+      "--package-dir",
+      options.packageDir,
+      "--address-name",
+      options.packageAddressName,
+    );
 
     if (options.namedAddresses) {
       args.push("--named-addresses");
@@ -633,12 +762,22 @@ class TestHarness {
     const args = [
       "move", "upgrade-object",
       "--assume-yes",
-      "--session", this.getSessionPath(),
-      "--profile", options.sender,
-      "--package-dir", options.packageDir,
-      "--address-name", options.packageAddressName,
-      "--object-address", options.objectAddress,
     ];
+
+    if (!this.isLiveMode) {
+      args.push("--session", this.getSessionPath());
+    }
+
+    args.push(
+      "--profile",
+      options.sender,
+      "--package-dir",
+      options.packageDir,
+      "--address-name",
+      options.packageAddressName,
+      "--object-address",
+      options.objectAddress,
+    );
 
     if (options.namedAddresses) {
       args.push("--named-addresses");
@@ -680,9 +819,13 @@ class TestHarness {
     // prettier-ignore
     const args = [
       "move", "view",
-      "--session", this.getSessionPath(),
-      "--function-id", options.functionId,
     ];
+
+    if (!this.isLiveMode) {
+      args.push("--session", this.getSessionPath());
+    }
+
+    args.push("--function-id", options.functionId);
 
     if (options.typeArgs && options.typeArgs.length > 0) {
       args.push("--type-args");
@@ -716,6 +859,10 @@ class TestHarness {
     resourceGroup: string,
     derivedObjectAddress?: string,
   ): any {
+    if (this.isLiveMode) {
+      throw new Error("viewResourceGroup is not supported in live mode");
+    }
+
     const args = [
       "move",
       "sim",
@@ -741,6 +888,10 @@ class TestHarness {
    * @returns The resource as a JSON object.
    */
   viewResource(account: string, resource: string): any {
+    if (this.isLiveMode) {
+      throw new Error("viewResource is not supported in live mode");
+    }
+
     const args = [
       "move",
       "sim",
@@ -849,10 +1000,11 @@ class TestHarness {
 }
 
 export {
-  TestHarness,
-  type TestHarnessOptions,
+  Harness,
   type MoveRunOptions,
   type ViewOptions,
   type PublishOptions,
-  type DeployCodeObjectOptions as DeployObjectOptions,
+  type DeployCodeObjectOptions,
+  type UpgradeCodeObjectOptions,
+  type MoveRunScriptOptions,
 };

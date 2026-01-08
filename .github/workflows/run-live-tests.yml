@@ -1,0 +1,41 @@
+name: Run Live Tests
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  run-live-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Use Node.js 22
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: 'npm'
+        cache-dependency-path: '**/package-lock.json'
+
+    - name: Install Aptos CLI
+      run: |
+        wget -q https://github.com/aptos-labs/aptos-core/releases/download/aptos-cli-v7.11.1/aptos-cli-7.11.1-Ubuntu-22.04-x86_64.zip
+        unzip -q aptos-cli-7.11.1-Ubuntu-22.04-x86_64.zip
+        chmod +x aptos
+        echo "$(pwd)" >> $GITHUB_PATH
+        ./aptos --version
+
+    - name: Build Forklift
+      working-directory: packages/forklift
+      run: |
+        npm ci
+        npm run build
+
+    - name: Run Live Tests
+      working-directory: packages/live-tests
+      run: |
+        npm ci
+        npm test
+

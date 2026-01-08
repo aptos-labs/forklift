@@ -1,0 +1,10 @@
+[package]
+name = "SimpleMessage"
+version = "0.0.1"
+
+[dependencies]
+AptosStdlib = { git = "https://github.com/aptos-labs/aptos-framework.git", subdir = "aptos-stdlib", rev = "mainnet" }
+
+[addresses]
+simple_message = "_"
+std = "0x1"

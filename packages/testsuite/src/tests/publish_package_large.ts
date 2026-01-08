@@ -1,9 +1,9 @@
-import { assertTxnSuccess, TestHarness } from "forklift";
+import { assertTxnSuccess, Harness } from "forklift";
 import * as path from "path";
 
 // FIXME: Need new version of Aptos CLI. Reenable once that gets released.
 describe.skip("publish package (large)", () => {
-  const harness = new TestHarness();
+  const harness = Harness.createLocal();
   const sender = "alice";
 
   afterAll(() => {

@@ -1,36 +1,21 @@
-import { TestHarness } from "forklift";
+import { Harness } from "forklift";
 
 describe("initialize harness", () => {
-  it("should initialize with default options", () => {
-    const harness = new TestHarness();
+  it("should initialize local harness", () => {
+    const harness = Harness.createLocal();
     expect(harness).toBeDefined();
     harness.cleanup();
   });
 
-  it("should throw error if only network is provided", () => {
-    expect(() => {
-      new TestHarness({ network: "mainnet" });
-    }).toThrow("Both network and apiKey must be provided together, or neither");
+  it("should initialize live harness", () => {
+    const harness = Harness.createLive("testnet");
+    expect(harness).toBeDefined();
+    harness.cleanup();
   });
 
-  it("should throw error if only apiKey is provided", () => {
+  it("should fail to initialize network fork harness with invalid API key", () => {
     expect(() => {
-      new TestHarness({ apiKey: "sometoken" });
-    }).toThrow("Both network and apiKey must be provided together, or neither");
-  });
-
-  it("should fail when initializing with invalid API key", () => {
-    expect(() => {
-      new TestHarness({
-        network: "mainnet",
-        apiKey: "invalid_api_key",
-      });
+      Harness.createNetworkFork("mainnet", "invalid_api_key");
     }).toThrow();
-  });
-
-  it("should throw error if networkVersion is provided without network", () => {
-    expect(() => {
-      new TestHarness({ networkVersion: 123 });
-    }).toThrow("networkVersion cannot be set when network is not set");
   });
 });
