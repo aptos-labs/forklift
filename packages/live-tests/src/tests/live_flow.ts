@@ -11,29 +11,22 @@ describe("live mode: publish, set message, and view message", () => {
   const message = "Hello, Live Aptos!";
 
   afterAll(async () => {
-    await localNode.stop();
+    //await localNode.stop();
     harness.cleanup();
   });
 
   it("spawn local node and initialize harness", async () => {
-    localNode = new LocalNode({ showStdout: false });
-    await localNode.run();
-    harness = Harness.createLive("http://127.0.0.1:8080");
+    //localNode = new LocalNode({ showStdout: false });
+    //await localNode.run();
+    harness = Harness.createLive("testnet");
 
-    sender = "default";
+    sender = "alice";
+    harness.init_cli_profile(sender);
     address = harness.getAccountAddress(sender);
   });
 
-  it("fund account via faucet", async () => {
-    const response = await fetch(
-      `http://127.0.0.1:8081/mint?amount=100000000&address=${address}`,
-      {
-        method: "POST",
-      },
-    );
-    if (!response.ok) {
-      throw new Error(`Faucet failed: ${response.statusText}`);
-    }
+  it("fund account via faucet", () => {
+    harness.fundAccount(sender, 100000000);
   });
 
   it("publish package", async () => {

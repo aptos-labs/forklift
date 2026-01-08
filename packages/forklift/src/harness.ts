@@ -24,7 +24,9 @@ const APTOS_BINARY = "aptos";
 const path = require("path");
 
 // TODOs
-// - Tests for Livemode
+// - Live Mode
+//   - fund account
+//   - view resource
 // - Test-only APIs
 //   - rotate key
 //   - set resource
@@ -132,6 +134,7 @@ interface HarnessOptions {
   apiKey?: string;
   networkVersion?: number | string | bigint;
   mode: "simulation" | "live";
+  faucetUrl?: string;
 }
 
 interface MoveRunOptions {
@@ -234,6 +237,7 @@ class Harness {
   private isLiveMode: boolean;
   private network: string;
   private restUrl: string;
+  private faucetUrl: string | null;
 
   getWorkingDir(): string {
     return this.workingDir;
@@ -256,19 +260,28 @@ class Harness {
       if (net === "mainnet") {
         this.network = "Mainnet";
         this.restUrl = "https://fullnode.mainnet.aptoslabs.com";
+        this.faucetUrl = null; // No faucet on mainnet
       } else if (net === "testnet") {
         this.network = "Testnet";
         this.restUrl = "https://fullnode.testnet.aptoslabs.com";
+        this.faucetUrl = null; // Testnet faucet requires web UI with Google auth
       } else if (net === "devnet") {
         this.network = "Devnet";
         this.restUrl = "https://fullnode.devnet.aptoslabs.com";
+        this.faucetUrl = "https://faucet.devnet.aptoslabs.com";
+      } else if (net === "local") {
+        this.network = "Local";
+        this.restUrl = "http://127.0.0.1:8080";
+        this.faucetUrl = "http://127.0.0.1:8081";
       } else {
         this.network = "Custom";
         this.restUrl = options.network;
+        this.faucetUrl = options.faucetUrl ?? null;
       }
     } else {
       this.network = "Custom";
       this.restUrl = "https://dummy.network.aptoslabs.com";
+      this.faucetUrl = null;
     }
 
     this.init_cli_profile("default");
@@ -339,12 +352,15 @@ class Harness {
    *
    * WARNING: Operations in this mode cost real gas and permanently alter the chain state.
    *
+   * @param network - The network identifier. Can be "mainnet", "testnet", "devnet", "local", or a custom fullnode URL.
+   * @param faucetUrl - Optional faucet URL for funding accounts. Auto-detected for known networks and localhost.
    * @returns A new Harness instance configured for live network interaction.
    */
-  static createLive(network: string): Harness {
+  static createLive(network: string, faucetUrl?: string): Harness {
     return new Harness({
       mode: "live",
       network,
+      faucetUrl,
     });
   }
 
@@ -456,38 +472,79 @@ class Harness {
   }
 
   /**
-   * Fund an account with APT tokens for testing purposes.
+   * Fund an account with APT tokens.
    *
-   * Adds the specified amount of APT tokens to the given account's fungible store.
-   * This provides accounts with sufficient balance for sending transactions or performing other operations.
+   * In simulation mode, adds the specified amount of APT tokens directly to the account's fungible store.
+   * In live mode, uses the network's faucet to fund the account (only available on Devnet, Testnet, and local networks).
    *
-   * @throws Error if the funding operation fails
+   * @param account - The account profile name to fund.
+   * @param amount - The amount of APT (in octas) to fund.
+   * @throws Error if the funding operation fails or if faucet is not available (e.g., Mainnet).
    */
   fundAccount(account: string, amount: number | bigint | string): void {
     if (this.isLiveMode) {
-      throw new Error("fundAccount is not supported in live mode");
-    }
+      if (!this.faucetUrl) {
+        if (this.network === "Mainnet") {
+          throw new Error(
+            "fundAccount is not supported on Mainnet: no faucet exists",
+          );
+        } else if (this.network === "Testnet") {
+          throw new Error(
+            "fundAccount is not supported on Testnet: faucet requires web UI with Google authentication (https://aptos.dev/network/faucet)",
+          );
+        } else {
+          throw new Error(
+            `fundAccount is not supported on ${this.network}: no faucet URL configured`,
+          );
+        }
+      }
 
-    // prettier-ignore
-    const res = runCommand(
-      APTOS_BINARY,
-      [
-        "move", "sim", "fund",
-        "--session", this.getSessionPath(),
-        "--account", account,
-        "--amount", amount.toString(),
-      ],
-      {
-        cwd: this.workingDir,
-      },
-    );
+      const accountAddress = this.getAccountAddress(account);
 
-    // FIXME: handle non-existent profile
-
-    if (!res || res.Result !== "Success") {
-      throw new Error(
-        `aptos fund failed: expected Result = Success, got ${JSON.stringify(res)}`,
+      const res = runCommand(
+        APTOS_BINARY,
+        [
+          "account",
+          "fund-with-faucet",
+          "--account",
+          accountAddress,
+          "--faucet-url",
+          this.faucetUrl,
+          "--amount",
+          amount.toString(),
+        ],
+        {
+          cwd: this.workingDir,
+        },
       );
+
+      if (!res || !res.Result || !res.Result.startsWith("Added")) {
+        throw new Error(
+          `aptos fund-with-faucet failed: ${JSON.stringify(res)}`,
+        );
+      }
+    } else {
+      // prettier-ignore
+      const res = runCommand(
+        APTOS_BINARY,
+        [
+          "move", "sim", "fund",
+          "--session", this.getSessionPath(),
+          "--account", account,
+          "--amount", amount.toString(),
+        ],
+        {
+          cwd: this.workingDir,
+        },
+      );
+
+      // FIXME: handle non-existent profile
+
+      if (!res || res.Result !== "Success") {
+        throw new Error(
+          `aptos move sim fund failed: expected Result = Success, got ${JSON.stringify(res)}`,
+        );
+      }
     }
   }
 
