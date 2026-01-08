@@ -71,8 +71,8 @@ export function runCommand(
 
     throw new Error(
       `Process exited with code ${result.status}.\n\n` +
-      `Stdout:\n${stdout}\n` +
-      `Stderr:\n${stderr}`,
+        `Stdout:\n${stdout}\n` +
+        `Stderr:\n${stderr}`,
     );
   }
 
@@ -361,8 +361,8 @@ class Harness {
   init_cli_profile(profile_name: string, privateKey?: string): void {
     const privKey = privateKey
       ? new Ed25519PrivateKey(
-        PrivateKey.formatPrivateKey(privateKey, PrivateKeyVariants.Ed25519),
-      )
+          PrivateKey.formatPrivateKey(privateKey, PrivateKeyVariants.Ed25519),
+        )
       : Ed25519PrivateKey.generate();
 
     const pubKey = privKey.publicKey();
