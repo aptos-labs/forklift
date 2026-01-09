@@ -11,22 +11,27 @@ describe("live mode: publish, set message, and view message", () => {
   const message = "Hello, Live Aptos!";
 
   afterAll(async () => {
-    //await localNode.stop();
+    await localNode.stop();
     harness.cleanup();
   });
 
   it("spawn local node and initialize harness", async () => {
-    //localNode = new LocalNode({ showStdout: false });
-    //await localNode.run();
-    harness = Harness.createLive("testnet");
+    localNode = new LocalNode({ showStdout: false });
+    await localNode.run();
+    harness = Harness.createLive("local");
 
-    sender = "alice";
-    harness.init_cli_profile(sender);
+    sender = "default";
     address = harness.getAccountAddress(sender);
   });
 
   it("fund account via faucet", () => {
     harness.fundAccount(sender, 100000000);
+  });
+
+  it("get APT balance via fungible store", () => {
+    const balance = harness.getAPTBalanceFungibleStore(sender);
+    // After funding with 100000000 octas and spending some on gas, balance should be positive
+    expect(balance).toBe(BigInt(100000000));
   });
 
   it("publish package", async () => {
@@ -56,5 +61,13 @@ describe("live mode: publish, set message, and view message", () => {
       args: [`address:${address}`],
     });
     expect(viewRes.Result[0]).toBe(message);
+  });
+
+  it("view resource", () => {
+    const resource = harness.viewResource(
+      address,
+      `${address}::message::MessageHolder`,
+    );
+    expect(resource.data.message).toBe(message);
   });
 });

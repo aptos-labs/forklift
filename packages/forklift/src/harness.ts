@@ -18,15 +18,13 @@ import {
 import yaml from "js-yaml";
 import { parse as parseToml } from "smol-toml";
 import assert from "assert";
+import fetch from "sync-fetch";
 
 const APTOS_BINARY = "aptos";
 
 const path = require("path");
 
 // TODOs
-// - Live Mode
-//   - fund account
-//   - view resource
 // - Test-only APIs
 //   - rotate key
 //   - set resource
@@ -40,6 +38,39 @@ function stripNodeModulesBin(pathEnv: string) {
 }
 
 const cleanPath = stripNodeModulesBin(process.env.PATH || "");
+
+/**
+ * Computes a derived object address using SHA3-256.
+ * This matches Move's object::create_user_derived_object_address(source, derive_from).
+ *
+ * @param sourceAddress - The source/owner address (with or without 0x prefix).
+ * @param deriveFromAddress - The address to derive from (with or without 0x prefix).
+ * @returns The derived address as a hex string with 0x prefix.
+ */
+function computeDerivedObjectAddress(
+  sourceAddress: string,
+  deriveFromAddress: string,
+): string {
+  const crypto = require("crypto");
+
+  // Normalize addresses to 32 bytes (64 hex chars without 0x prefix)
+  const sourceBytes = Buffer.from(
+    sourceAddress.replace("0x", "").padStart(64, "0"),
+    "hex",
+  );
+  const deriveFromBytes = Buffer.from(
+    deriveFromAddress.replace("0x", "").padStart(64, "0"),
+    "hex",
+  );
+  const suffix = Buffer.from([0xfc]); // DERIVE_OBJECT_FROM_OBJECT_SCHEME
+
+  const hash = crypto.createHash("sha3-256");
+  hash.update(sourceBytes);
+  hash.update(deriveFromBytes);
+  hash.update(suffix);
+
+  return "0x" + hash.digest("hex");
+}
 
 /**
  * Executes a shell command and parses its output as JSON.
@@ -908,6 +939,12 @@ class Harness {
   /**
    * Views a resource group.
    *
+   * In simulation mode, queries the simulation session state.
+   * In live mode, fetches resources from the network via REST API.
+   *
+   * @param account - The account address or profile name.
+   * @param resourceGroup - The resource group type (e.g., "0x1::object::ObjectGroup").
+   * @param derivedObjectAddress - Optional derived object address for computing the actual resource location.
    * @returns The resource group as a JSON object -- a map from resource type names
    * to individual resource objects.
    */
@@ -917,51 +954,75 @@ class Harness {
     derivedObjectAddress?: string,
   ): any {
     if (this.isLiveMode) {
-      throw new Error("viewResourceGroup is not supported in live mode");
+      throw new Error(
+        "viewResourceGroup is not supported in live mode. Use viewResource() to query individual resources within a group directly.",
+      );
+    } else {
+      const args = [
+        "move",
+        "sim",
+        "view-resource-group",
+        "--session",
+        this.getSessionPath(),
+        "--account",
+        account,
+        "--resource-group",
+        resourceGroup,
+      ];
+
+      if (derivedObjectAddress) {
+        args.push("--derived-object-address", derivedObjectAddress);
+      }
+
+      return runCommand(APTOS_BINARY, args, { cwd: this.workingDir });
     }
-
-    const args = [
-      "move",
-      "sim",
-      "view-resource-group",
-      "--session",
-      this.getSessionPath(),
-      "--account",
-      account,
-      "--resource-group",
-      resourceGroup,
-    ];
-
-    if (derivedObjectAddress) {
-      args.push("--derived-object-address", derivedObjectAddress);
-    }
-
-    return runCommand(APTOS_BINARY, args, { cwd: this.workingDir });
   }
 
   /**
-   * Views a specific resource from the simulation session.
+   * Views a specific resource from an account.
    *
+   * In simulation mode, queries the simulation session state.
+   * In live mode, queries the network via REST API.
+   *
+   * @param account - The account address or profile name.
+   * @param resource - The fully qualified resource type (e.g., "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>").
    * @returns The resource as a JSON object.
    */
   viewResource(account: string, resource: string): any {
     if (this.isLiveMode) {
-      throw new Error("viewResource is not supported in live mode");
+      // Resolve profile name to address if needed
+      let address = account;
+      if (!account.startsWith("0x")) {
+        address = this.getAccountAddress(account);
+      }
+
+      // URL-encode the resource type (handles angle brackets, colons, etc.)
+      const encodedResource = encodeURIComponent(resource);
+      const url = `${this.restUrl}/v1/accounts/${address}/resource/${encodedResource}`;
+
+      const response = fetch(url);
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch resource: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      return response.json();
+    } else {
+      const args = [
+        "move",
+        "sim",
+        "view-resource",
+        "--session",
+        this.getSessionPath(),
+        "--account",
+        account,
+        "--resource",
+        resource,
+      ];
+
+      return runCommand(APTOS_BINARY, args, { cwd: this.workingDir });
     }
-
-    const args = [
-      "move",
-      "sim",
-      "view-resource",
-      "--session",
-      this.getSessionPath(),
-      "--account",
-      account,
-      "--resource",
-      resource,
-    ];
-
-    return runCommand(APTOS_BINARY, args, { cwd: this.workingDir });
   }
 
   /**
@@ -971,21 +1032,51 @@ class Harness {
    * @returns The APT balance as a bigint.
    */
   getAPTBalanceFungibleStore(account: string): bigint {
-    const res = this.viewResourceGroup(
-      account,
-      "0x1::object::ObjectGroup",
-      "0xA",
-    );
+    if (this.isLiveMode) {
+      // Resolve profile name to address if needed
+      let address = account;
+      if (!account.startsWith("0x")) {
+        address = this.getAccountAddress(account);
+      }
 
-    if (
-      !res ||
-      !res.Result ||
-      !res.Result["0x1::fungible_asset::FungibleStore"]
-    ) {
-      return BigInt(0);
+      // Compute primary fungible store address
+      const storeAddress = computeDerivedObjectAddress(address, "0xA");
+
+      // Fetch the FungibleStore resource directly
+      const resourceType = encodeURIComponent(
+        "0x1::fungible_asset::FungibleStore",
+      );
+      const url = `${this.restUrl}/v1/accounts/${storeAddress}/resource/${resourceType}`;
+      const response = fetch(url);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return BigInt(0);
+        }
+        throw new Error(
+          `Failed to fetch FungibleStore: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const resource = response.json() as { type: string; data: any };
+      return BigInt(resource.data.balance);
+    } else {
+      const res = this.viewResourceGroup(
+        account,
+        "0x1::object::ObjectGroup",
+        "0xA",
+      );
+
+      if (
+        !res ||
+        !res.Result ||
+        !res.Result["0x1::fungible_asset::FungibleStore"]
+      ) {
+        return BigInt(0);
+      }
+
+      return BigInt(res.Result["0x1::fungible_asset::FungibleStore"].balance);
     }
-
-    return BigInt(res.Result["0x1::fungible_asset::FungibleStore"].balance);
   }
 
   cleanup(): void {
