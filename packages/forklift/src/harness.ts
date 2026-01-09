@@ -1,4 +1,5 @@
 import { spawnSync } from "child_process";
+import crypto from "crypto";
 import {
   mkdtempSync,
   rmSync,
@@ -7,7 +8,7 @@ import {
   existsSync,
   mkdirSync,
 } from "fs";
-import { join } from "path";
+import path, { join } from "path";
 import { tmpdir } from "os";
 import {
   Account,
@@ -21,8 +22,6 @@ import assert from "assert";
 import fetch from "sync-fetch";
 
 const APTOS_BINARY = "aptos";
-
-const path = require("path");
 
 // TODOs
 // - Test-only APIs
@@ -51,8 +50,6 @@ function computeDerivedObjectAddress(
   sourceAddress: string,
   deriveFromAddress: string,
 ): string {
-  const crypto = require("crypto");
-
   // Normalize addresses to 32 bytes (64 hex chars without 0x prefix)
   const sourceBytes = Buffer.from(
     sourceAddress.replace("0x", "").padStart(64, "0"),
@@ -270,10 +267,20 @@ class Harness {
   private restUrl: string;
   private faucetUrl: string | null;
 
+  /**
+   * Gets the working directory path for this harness instance.
+   *
+   * @returns The absolute path to the temporary working directory.
+   */
   getWorkingDir(): string {
     return this.workingDir;
   }
 
+  /**
+   * Gets the session path used for simulation mode.
+   *
+   * @returns The absolute path to the simulation session data directory.
+   */
   getSessionPath(): string {
     return join(this.workingDir, "data");
   }
@@ -836,6 +843,14 @@ class Harness {
       cwd: this.workingDir,
     });
 
+    // Normalize deployed_object_address to include 0x prefix
+    if (res?.Result?.deployed_object_address) {
+      const addr = res.Result.deployed_object_address;
+      if (!addr.startsWith("0x")) {
+        res.Result.deployed_object_address = "0x" + addr;
+      }
+    }
+
     return res;
   }
 
@@ -1002,12 +1017,18 @@ class Harness {
 
       const response = fetch(url);
       if (!response.ok) {
+        // Return null result for 404 to match simulation mode behavior
+        if (response.status === 404) {
+          return { Result: null };
+        }
         throw new Error(
           `Failed to fetch resource: ${response.status} ${response.statusText}`,
         );
       }
 
-      return response.json();
+      // Wrap response to match simulation format: { Result: data }
+      const resource_response = response.json() as { type: string; data: any };
+      return { Result: resource_response.data };
     } else {
       const args = [
         "move",
@@ -1079,6 +1100,12 @@ class Harness {
     }
   }
 
+  /**
+   * Cleans up the harness by removing the temporary working directory.
+   *
+   * After calling this method, the harness instance becomes "poisoned" and any
+   * subsequent method calls (except cleanup itself) will throw an error.
+   */
   cleanup(): void {
     this.poisoned = true;
     try {

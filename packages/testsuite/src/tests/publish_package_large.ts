@@ -1,4 +1,4 @@
-import { assertTxnSuccess, Harness } from "forklift";
+import { assertTxnSuccess, Harness } from "@aptos-labs/forklift";
 import * as path from "path";
 
 // FIXME: Need new version of Aptos CLI. Reenable once that gets released.

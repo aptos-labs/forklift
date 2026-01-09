@@ -1,4 +1,4 @@
-import { Harness } from "forklift";
+import { Harness } from "@aptos-labs/forklift";
 
 describe("initialize harness", () => {
   it("should initialize local harness", () => {

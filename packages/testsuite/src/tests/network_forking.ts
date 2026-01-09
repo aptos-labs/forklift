@@ -1,4 +1,4 @@
-import { assertTxnSuccess, Harness } from "forklift";
+import { assertTxnSuccess, Harness } from "@aptos-labs/forklift";
 
 const apiKey = process.env.APTOS_API_KEY;
 

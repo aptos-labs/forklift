@@ -9,7 +9,7 @@
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
-    "forklift": "file:../forklift",
+    "@aptos-labs/forklift": "file:../forklift",
     "jest": "^29.7.0",
     "prettier": "^3.7.4",
     "ts-jest": "^29.1.2",

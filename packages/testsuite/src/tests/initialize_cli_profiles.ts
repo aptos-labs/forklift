@@ -1,4 +1,4 @@
-import { Harness } from "forklift";
+import { Harness } from "@aptos-labs/forklift";
 import { Ed25519PrivateKey, Account } from "@aptos-labs/ts-sdk";
 
 describe("initialize CLI profiles", () => {

@@ -1,4 +1,4 @@
-import { assertTxnSuccess, Harness } from "forklift";
+import { assertTxnSuccess, Harness } from "@aptos-labs/forklift";
 
 describe("fund, transfer, and view sequence number", () => {
   let harness: Harness = Harness.createLocal();

@@ -1,5 +1,5 @@
 {
-  "name": "forklift",
+  "name": "@aptos-labs/forklift",
   "version": "1.0.0",
   "description": "",
   "main": "dist/index.js",
