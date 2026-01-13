@@ -1,19 +1,18 @@
 {
-  "name": "forklift-testsuite",
+  "name": "example-tip-jar",
   "version": "1.0.0",
-  "description": "Forklift testsuite",
+  "description": "TipJar example demonstrating Forklift's develop → deploy → upgrade workflow",
   "scripts": {
     "test": "jest",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\""
   },
   "devDependencies": {
-    "@aptos-labs/forklift": "file:../forklift",
     "@types/jest": "^29.5.14",
+    "@aptos-labs/forklift": "file:../forklift",
     "jest": "^29.7.0",
     "prettier": "^3.7.4",
     "ts-jest": "^29.1.2",
-    "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   },
   "dependencies": {

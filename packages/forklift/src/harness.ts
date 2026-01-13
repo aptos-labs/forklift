@@ -174,6 +174,12 @@ interface MoveRunOptions {
   maxGas?: number;
   expirationSecs?: number;
   extraFlags?: string[];
+  /**
+   * If true, fetches and includes events in the result.
+   * - In simulation mode: reads events from the session's events.json file
+   * - In live mode: fetches the transaction from REST API to get events
+   */
+  includeEvents?: boolean;
 }
 
 interface MoveRunScriptOptions {
@@ -189,6 +195,10 @@ interface MoveRunScriptOptions {
   expirationSecs?: number;
   compileExtraFlags?: string[];
   runExtraFlags?: string[];
+  /**
+   * If true, fetches and includes events in the result.
+   */
+  includeEvents?: boolean;
 }
 
 interface ViewOptions {
@@ -207,6 +217,10 @@ interface PublishOptions {
 
   chunked?: boolean;
   extraFlags?: string[];
+  /**
+   * If true, fetches and includes events in the result.
+   */
+  includeEvents?: boolean;
 }
 
 interface DeployCodeObjectOptions {
@@ -219,6 +233,10 @@ interface DeployCodeObjectOptions {
 
   chunked?: boolean;
   extraFlags?: string[];
+  /**
+   * If true, fetches and includes events in the result.
+   */
+  includeEvents?: boolean;
 }
 
 interface UpgradeCodeObjectOptions {
@@ -232,6 +250,10 @@ interface UpgradeCodeObjectOptions {
 
   chunked?: boolean;
   extraFlags?: string[];
+  /**
+   * If true, fetches and includes events in the result.
+   */
+  includeEvents?: boolean;
 }
 
 /**
@@ -642,6 +664,14 @@ class Harness {
       cwd: this.workingDir,
     });
 
+    // Fetch events if requested
+    if (options.includeEvents && res.Result?.success) {
+      const events = this.fetchTransactionEvents(res.Result.transaction_hash);
+      if (events !== undefined) {
+        res.Result.events = events;
+      }
+    }
+
     return res;
   }
 
@@ -738,6 +768,14 @@ class Harness {
       cwd: this.workingDir,
     });
 
+    // Fetch events if requested
+    if (options.includeEvents && res.Result?.success) {
+      const events = this.fetchTransactionEvents(res.Result.transaction_hash);
+      if (events !== undefined) {
+        res.Result.events = events;
+      }
+    }
+
     return res;
   }
 
@@ -787,6 +825,14 @@ class Harness {
     const res = runCommand(APTOS_BINARY, args, {
       cwd: this.workingDir,
     });
+
+    // Fetch events if requested
+    if (options.includeEvents && res.Result?.success) {
+      const events = this.fetchTransactionEvents(res.Result.transaction_hash);
+      if (events !== undefined) {
+        res.Result.events = events;
+      }
+    }
 
     return res;
   }
@@ -851,6 +897,14 @@ class Harness {
       }
     }
 
+    // Fetch events if requested
+    if (options.includeEvents && res.Result?.success) {
+      const events = this.fetchTransactionEvents(res.Result.transaction_hash);
+      if (events !== undefined) {
+        res.Result.events = events;
+      }
+    }
+
     return res;
   }
 
@@ -907,6 +961,14 @@ class Harness {
     const res = runCommand(APTOS_BINARY, args, {
       cwd: this.workingDir,
     });
+
+    // Fetch events if requested
+    if (options.includeEvents && res.Result?.success) {
+      const events = this.fetchTransactionEvents(res.Result.transaction_hash);
+      if (events !== undefined) {
+        res.Result.events = events;
+      }
+    }
 
     return res;
   }
@@ -1171,6 +1233,90 @@ class Harness {
       addr = "0x" + addr;
     }
     return addr;
+  }
+
+  /**
+   * Fetches events for a transaction.
+   *
+   * In simulation mode, reads from the events.json file in the latest transaction directory.
+   * In live mode, fetches the transaction from the REST API.
+   *
+   * @param transactionHash - The transaction hash to fetch events for.
+   * @returns The events array, or undefined if not available.
+   */
+  private fetchTransactionEvents(transactionHash: string): any[] | undefined {
+    if (this.isLiveMode) {
+      // Live mode: fetch from REST API
+      const url = `${this.restUrl}/v1/transactions/by_hash/${transactionHash}`;
+      const response = fetch(url);
+
+      if (!response.ok) {
+        console.warn(
+          `Failed to fetch transaction events: ${response.status} ${response.statusText}`,
+        );
+        return undefined;
+      }
+
+      const txData = response.json() as { events?: any[] };
+      return txData.events;
+    } else {
+      // Simulation mode: read from events.json in the latest transaction directory
+      const sessionPath = this.getSessionPath();
+
+      if (!existsSync(sessionPath)) {
+        return undefined;
+      }
+
+      try {
+        // Read config.json to get the transaction count
+        const configPath = join(sessionPath, "config.json");
+        if (!existsSync(configPath)) {
+          return undefined;
+        }
+
+        const config = JSON.parse(readFileSync(configPath, "utf8"));
+        const lastTxIndex = config.ops - 1;
+
+        // Find the directory starting with "[{lastTxIndex}]"
+        const { readdirSync } = require("fs");
+        const files = readdirSync(sessionPath) as string[];
+        const prefix = `[${lastTxIndex}]`;
+        const txDir = files.find((f: string) => f.startsWith(prefix));
+
+        if (!txDir) {
+          return undefined;
+        }
+
+        const eventsPath = join(sessionPath, txDir, "events.json");
+        if (!existsSync(eventsPath)) {
+          return undefined;
+        }
+
+        const eventsContent = readFileSync(eventsPath, "utf8");
+        const rawEvents = JSON.parse(eventsContent);
+
+        // Transform simulation event format to match REST API format
+        // Simulation format: { V2: { type_tag: "...", event_data: {...} } }
+        // REST API format: { type: "...", data: {...} }
+        if (Array.isArray(rawEvents)) {
+          return rawEvents.map((event: any) => {
+            if (event.V2) {
+              return {
+                type: event.V2.type_tag,
+                data: event.V2.event_data,
+              };
+            }
+            // Return as-is if already in expected format
+            return event;
+          });
+        }
+
+        return undefined;
+      } catch (e) {
+        console.warn(`Failed to read events: ${e}`);
+        return undefined;
+      }
+    }
   }
 }
 
