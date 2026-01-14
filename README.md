@@ -58,6 +58,8 @@ harness.cleanup();
 
 For a complete tutorial, see the [TipJar example](./packages/example-tip-jar/).
 
+> **Note:** Forklift uses the same formats as the Aptos CLI for function IDs (`0x1::module::function`), addresses, and typed arguments (`u64:100`, `address:0x1`, `bool:true`). If you're familiar with the CLI, you already know the syntax.
+
 ## The Harness Class
 
 All interactions with Forklift go through the `Harness` class. Create one using the appropriate factory method for your use case:
@@ -67,6 +69,12 @@ All interactions with Forklift go through the `Harness` class. Create one using 
 | `Harness.createLocal()` | Local simulation | Development, unit tests, CI |
 | `Harness.createNetworkFork(network, apiKey)` | Network forking | Testing against real state, dry-runs |
 | `Harness.createLive(network)` | Live execution | Deploying, production scripts |
+
+**Local simulation** is your starting point. It runs entirely in memory with no network dependencies — perfect for rapid iteration during development and for CI pipelines.
+
+**Network forking** is one of Forklift's most powerful features. It fetches real chain state (accounts, resources, deployed contracts) and lets you simulate against it locally. This is useful for testing interactions with existing protocols or verifying your scripts before executing them for real. The `apiKey` is required to avoid rate limiting when fetching state from the network — [get one for free](https://aptos.dev/build/guides/build-e2e-dapp#setup-api-key).
+
+**Live mode** executes real transactions on the network. Use this when you're ready to deploy or interact with contracts for real — but remember, this costs gas and changes are permanent.
 
 The key insight: **your code stays the same across all modes**. Write workflow functions that take a `Harness` parameter, then swap the harness to change modes.
 
@@ -146,9 +154,9 @@ const result = harness.deployCodeObject({
 |--------|----------|-------------|
 | `sender` | Yes | Profile name or address of the deployer |
 | `packageDir` | Yes | Path to the Move package |
-| `packageAddressName` | Yes | Named address to replace in Move.toml |
+| `packageAddressName` | Yes | The named address in Move.toml (e.g., `my_contract = "_"`) that represents the package's address. During deployment, a new object is created and this named address is set to the object's address. |
 | `namedAddresses` | No | Additional named address mappings |
-| `includedArtifacts` | No | Artifacts to include |
+| `includedArtifacts` | No | If true, includes artifacts in the package |
 | `chunked` | No | If true, uses chunked upload for large packages |
 | `includeEvents` | No | If true, includes events in the result |
 | `extraFlags` | No | Additional flags passed to the CLI command |
@@ -159,10 +167,10 @@ const result = harness.deployCodeObject({
 |--------|----------|-------------|
 | `sender` | Yes | Profile name or address (must be upgrade authority) |
 | `packageDir` | Yes | Path to the Move package |
-| `packageAddressName` | Yes | Named address to replace in Move.toml |
+| `packageAddressName` | Yes | The named address in Move.toml that represents the package's address (same as used in initial deployment) |
 | `objectAddress` | Yes | Address of the deployed code object to upgrade |
 | `namedAddresses` | No | Additional named address mappings |
-| `includedArtifacts` | No | Artifacts to include |
+| `includedArtifacts` | No | If true, includes artifacts in the package |
 | `chunked` | No | If true, uses chunked upload for large packages |
 | `includeEvents` | No | If true, includes events in the result |
 | `extraFlags` | No | Additional flags passed to the CLI command |
@@ -174,7 +182,7 @@ const result = harness.deployCodeObject({
 | `sender` | Yes | Profile name or address (package published to this account) |
 | `packageDir` | Yes | Path to the Move package |
 | `namedAddresses` | No | Named address mappings |
-| `includedArtifacts` | No | Artifacts to include |
+| `includedArtifacts` | No | If true, includes artifacts in the package |
 | `chunked` | No | If true, uses chunked upload for large packages |
 | `includeEvents` | No | If true, includes events in the result |
 | `extraFlags` | No | Additional flags passed to the CLI command |
@@ -234,6 +242,7 @@ They're complementary: develop, test, deploy and manage your contracts with Fork
 ## Known Limitations
 
 - **No arbitrary resource modification** — Forklift does not yet support modifying arbitrary on-chain resources during simulation. This is planned for a future release.
+- **No debugging tool integration** — Integration with the Gas Profiler and other debugging tools is not yet available. This is also planned for the future.
 
 ## Contributing
 
