@@ -1,0 +1,5 @@
+# Credentials (safety net - default path is ~/.tip-jar/credentials.json)
+credentials.json
+
+# Config (may contain addresses you don't want public)
+config.json

@@ -8,7 +8,7 @@
     },
     "dependencies": {
         "@aptos-labs/ts-sdk": "^1.27.1",
-        "forklift": "file:../forklift",
+        "@aptos-labs/forklift": "file:../forklift",
         "tree-kill": "^1.2.2"
     },
     "devDependencies": {

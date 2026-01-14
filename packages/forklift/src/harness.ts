@@ -1,4 +1,5 @@
 import { spawnSync } from "child_process";
+import crypto from "crypto";
 import {
   mkdtempSync,
   rmSync,
@@ -7,7 +8,7 @@ import {
   existsSync,
   mkdirSync,
 } from "fs";
-import { join } from "path";
+import path, { join } from "path";
 import { tmpdir } from "os";
 import {
   Account,
@@ -18,13 +19,11 @@ import {
 import yaml from "js-yaml";
 import { parse as parseToml } from "smol-toml";
 import assert from "assert";
+import fetch from "sync-fetch";
 
 const APTOS_BINARY = "aptos";
 
-const path = require("path");
-
 // TODOs
-// - Tests for Livemode
 // - Test-only APIs
 //   - rotate key
 //   - set resource
@@ -38,6 +37,37 @@ function stripNodeModulesBin(pathEnv: string) {
 }
 
 const cleanPath = stripNodeModulesBin(process.env.PATH || "");
+
+/**
+ * Computes a derived object address using SHA3-256.
+ * This matches Move's object::create_user_derived_object_address(source, derive_from).
+ *
+ * @param sourceAddress - The source/owner address (with or without 0x prefix).
+ * @param deriveFromAddress - The address to derive from (with or without 0x prefix).
+ * @returns The derived address as a hex string with 0x prefix.
+ */
+function computeDerivedObjectAddress(
+  sourceAddress: string,
+  deriveFromAddress: string,
+): string {
+  // Normalize addresses to 32 bytes (64 hex chars without 0x prefix)
+  const sourceBytes = Buffer.from(
+    sourceAddress.replace("0x", "").padStart(64, "0"),
+    "hex",
+  );
+  const deriveFromBytes = Buffer.from(
+    deriveFromAddress.replace("0x", "").padStart(64, "0"),
+    "hex",
+  );
+  const suffix = Buffer.from([0xfc]); // DERIVE_OBJECT_FROM_OBJECT_SCHEME
+
+  const hash = crypto.createHash("sha3-256");
+  hash.update(sourceBytes);
+  hash.update(deriveFromBytes);
+  hash.update(suffix);
+
+  return "0x" + hash.digest("hex");
+}
 
 /**
  * Executes a shell command and parses its output as JSON.
@@ -132,6 +162,7 @@ interface HarnessOptions {
   apiKey?: string;
   networkVersion?: number | string | bigint;
   mode: "simulation" | "live";
+  faucetUrl?: string;
 }
 
 interface MoveRunOptions {
@@ -143,6 +174,12 @@ interface MoveRunOptions {
   maxGas?: number;
   expirationSecs?: number;
   extraFlags?: string[];
+  /**
+   * If true, fetches and includes events in the result.
+   * - In simulation mode: reads events from the session's events.json file
+   * - In live mode: fetches the transaction from REST API to get events
+   */
+  includeEvents?: boolean;
 }
 
 interface MoveRunScriptOptions {
@@ -158,6 +195,10 @@ interface MoveRunScriptOptions {
   expirationSecs?: number;
   compileExtraFlags?: string[];
   runExtraFlags?: string[];
+  /**
+   * If true, fetches and includes events in the result.
+   */
+  includeEvents?: boolean;
 }
 
 interface ViewOptions {
@@ -176,6 +217,10 @@ interface PublishOptions {
 
   chunked?: boolean;
   extraFlags?: string[];
+  /**
+   * If true, fetches and includes events in the result.
+   */
+  includeEvents?: boolean;
 }
 
 interface DeployCodeObjectOptions {
@@ -188,6 +233,10 @@ interface DeployCodeObjectOptions {
 
   chunked?: boolean;
   extraFlags?: string[];
+  /**
+   * If true, fetches and includes events in the result.
+   */
+  includeEvents?: boolean;
 }
 
 interface UpgradeCodeObjectOptions {
@@ -201,6 +250,10 @@ interface UpgradeCodeObjectOptions {
 
   chunked?: boolean;
   extraFlags?: string[];
+  /**
+   * If true, fetches and includes events in the result.
+   */
+  includeEvents?: boolean;
 }
 
 /**
@@ -234,11 +287,22 @@ class Harness {
   private isLiveMode: boolean;
   private network: string;
   private restUrl: string;
+  private faucetUrl: string | null;
 
+  /**
+   * Gets the working directory path for this harness instance.
+   *
+   * @returns The absolute path to the temporary working directory.
+   */
   getWorkingDir(): string {
     return this.workingDir;
   }
 
+  /**
+   * Gets the session path used for simulation mode.
+   *
+   * @returns The absolute path to the simulation session data directory.
+   */
   getSessionPath(): string {
     return join(this.workingDir, "data");
   }
@@ -256,19 +320,28 @@ class Harness {
       if (net === "mainnet") {
         this.network = "Mainnet";
         this.restUrl = "https://fullnode.mainnet.aptoslabs.com";
+        this.faucetUrl = null; // No faucet on mainnet
       } else if (net === "testnet") {
         this.network = "Testnet";
         this.restUrl = "https://fullnode.testnet.aptoslabs.com";
+        this.faucetUrl = null; // Testnet faucet requires web UI with Google auth
       } else if (net === "devnet") {
         this.network = "Devnet";
         this.restUrl = "https://fullnode.devnet.aptoslabs.com";
+        this.faucetUrl = "https://faucet.devnet.aptoslabs.com";
+      } else if (net === "local") {
+        this.network = "Local";
+        this.restUrl = "http://127.0.0.1:8080";
+        this.faucetUrl = "http://127.0.0.1:8081";
       } else {
         this.network = "Custom";
         this.restUrl = options.network;
+        this.faucetUrl = options.faucetUrl ?? null;
       }
     } else {
       this.network = "Custom";
       this.restUrl = "https://dummy.network.aptoslabs.com";
+      this.faucetUrl = null;
     }
 
     this.init_cli_profile("default");
@@ -339,12 +412,15 @@ class Harness {
    *
    * WARNING: Operations in this mode cost real gas and permanently alter the chain state.
    *
+   * @param network - The network identifier. Can be "mainnet", "testnet", "devnet", "local", or a custom fullnode URL.
+   * @param faucetUrl - Optional faucet URL for funding accounts. Auto-detected for known networks and localhost.
    * @returns A new Harness instance configured for live network interaction.
    */
-  static createLive(network: string): Harness {
+  static createLive(network: string, faucetUrl?: string): Harness {
     return new Harness({
       mode: "live",
       network,
+      faucetUrl,
     });
   }
 
@@ -456,38 +532,79 @@ class Harness {
   }
 
   /**
-   * Fund an account with APT tokens for testing purposes.
+   * Fund an account with APT tokens.
    *
-   * Adds the specified amount of APT tokens to the given account's fungible store.
-   * This provides accounts with sufficient balance for sending transactions or performing other operations.
+   * In simulation mode, adds the specified amount of APT tokens directly to the account's fungible store.
+   * In live mode, uses the network's faucet to fund the account (only available on Devnet, Testnet, and local networks).
    *
-   * @throws Error if the funding operation fails
+   * @param account - The account profile name to fund.
+   * @param amount - The amount of APT (in octas) to fund.
+   * @throws Error if the funding operation fails or if faucet is not available (e.g., Mainnet).
    */
   fundAccount(account: string, amount: number | bigint | string): void {
     if (this.isLiveMode) {
-      throw new Error("fundAccount is not supported in live mode");
-    }
+      if (!this.faucetUrl) {
+        if (this.network === "Mainnet") {
+          throw new Error(
+            "fundAccount is not supported on Mainnet: no faucet exists",
+          );
+        } else if (this.network === "Testnet") {
+          throw new Error(
+            "fundAccount is not supported on Testnet: faucet requires web UI with Google authentication (https://aptos.dev/network/faucet)",
+          );
+        } else {
+          throw new Error(
+            `fundAccount is not supported on ${this.network}: no faucet URL configured`,
+          );
+        }
+      }
 
-    // prettier-ignore
-    const res = runCommand(
-      APTOS_BINARY,
-      [
-        "move", "sim", "fund",
-        "--session", this.getSessionPath(),
-        "--account", account,
-        "--amount", amount.toString(),
-      ],
-      {
-        cwd: this.workingDir,
-      },
-    );
+      const accountAddress = this.getAccountAddress(account);
 
-    // FIXME: handle non-existent profile
-
-    if (!res || res.Result !== "Success") {
-      throw new Error(
-        `aptos fund failed: expected Result = Success, got ${JSON.stringify(res)}`,
+      const res = runCommand(
+        APTOS_BINARY,
+        [
+          "account",
+          "fund-with-faucet",
+          "--account",
+          accountAddress,
+          "--faucet-url",
+          this.faucetUrl,
+          "--amount",
+          amount.toString(),
+        ],
+        {
+          cwd: this.workingDir,
+        },
       );
+
+      if (!res || !res.Result || !res.Result.startsWith("Added")) {
+        throw new Error(
+          `aptos fund-with-faucet failed: ${JSON.stringify(res)}`,
+        );
+      }
+    } else {
+      // prettier-ignore
+      const res = runCommand(
+        APTOS_BINARY,
+        [
+          "move", "sim", "fund",
+          "--session", this.getSessionPath(),
+          "--account", account,
+          "--amount", amount.toString(),
+        ],
+        {
+          cwd: this.workingDir,
+        },
+      );
+
+      // FIXME: handle non-existent profile
+
+      if (!res || res.Result !== "Success") {
+        throw new Error(
+          `aptos move sim fund failed: expected Result = Success, got ${JSON.stringify(res)}`,
+        );
+      }
     }
   }
 
@@ -546,6 +663,14 @@ class Harness {
     const res = runCommand(APTOS_BINARY, args, {
       cwd: this.workingDir,
     });
+
+    // Fetch events if requested
+    if (options.includeEvents && res.Result?.success) {
+      const events = this.fetchTransactionEvents(res.Result.transaction_hash);
+      if (events !== undefined) {
+        res.Result.events = events;
+      }
+    }
 
     return res;
   }
@@ -643,6 +768,14 @@ class Harness {
       cwd: this.workingDir,
     });
 
+    // Fetch events if requested
+    if (options.includeEvents && res.Result?.success) {
+      const events = this.fetchTransactionEvents(res.Result.transaction_hash);
+      if (events !== undefined) {
+        res.Result.events = events;
+      }
+    }
+
     return res;
   }
 
@@ -692,6 +825,14 @@ class Harness {
     const res = runCommand(APTOS_BINARY, args, {
       cwd: this.workingDir,
     });
+
+    // Fetch events if requested
+    if (options.includeEvents && res.Result?.success) {
+      const events = this.fetchTransactionEvents(res.Result.transaction_hash);
+      if (events !== undefined) {
+        res.Result.events = events;
+      }
+    }
 
     return res;
   }
@@ -747,6 +888,22 @@ class Harness {
     const res = runCommand(APTOS_BINARY, args, {
       cwd: this.workingDir,
     });
+
+    // Normalize deployed_object_address to include 0x prefix
+    if (res?.Result?.deployed_object_address) {
+      const addr = res.Result.deployed_object_address;
+      if (!addr.startsWith("0x")) {
+        res.Result.deployed_object_address = "0x" + addr;
+      }
+    }
+
+    // Fetch events if requested
+    if (options.includeEvents && res.Result?.success) {
+      const events = this.fetchTransactionEvents(res.Result.transaction_hash);
+      if (events !== undefined) {
+        res.Result.events = events;
+      }
+    }
 
     return res;
   }
@@ -805,6 +962,14 @@ class Harness {
       cwd: this.workingDir,
     });
 
+    // Fetch events if requested
+    if (options.includeEvents && res.Result?.success) {
+      const events = this.fetchTransactionEvents(res.Result.transaction_hash);
+      if (events !== undefined) {
+        res.Result.events = events;
+      }
+    }
+
     return res;
   }
 
@@ -851,6 +1016,12 @@ class Harness {
   /**
    * Views a resource group.
    *
+   * In simulation mode, queries the simulation session state.
+   * In live mode, fetches resources from the network via REST API.
+   *
+   * @param account - The account address or profile name.
+   * @param resourceGroup - The resource group type (e.g., "0x1::object::ObjectGroup").
+   * @param derivedObjectAddress - Optional derived object address for computing the actual resource location.
    * @returns The resource group as a JSON object -- a map from resource type names
    * to individual resource objects.
    */
@@ -860,51 +1031,81 @@ class Harness {
     derivedObjectAddress?: string,
   ): any {
     if (this.isLiveMode) {
-      throw new Error("viewResourceGroup is not supported in live mode");
+      throw new Error(
+        "viewResourceGroup is not supported in live mode. Use viewResource() to query individual resources within a group directly.",
+      );
+    } else {
+      const args = [
+        "move",
+        "sim",
+        "view-resource-group",
+        "--session",
+        this.getSessionPath(),
+        "--account",
+        account,
+        "--resource-group",
+        resourceGroup,
+      ];
+
+      if (derivedObjectAddress) {
+        args.push("--derived-object-address", derivedObjectAddress);
+      }
+
+      return runCommand(APTOS_BINARY, args, { cwd: this.workingDir });
     }
-
-    const args = [
-      "move",
-      "sim",
-      "view-resource-group",
-      "--session",
-      this.getSessionPath(),
-      "--account",
-      account,
-      "--resource-group",
-      resourceGroup,
-    ];
-
-    if (derivedObjectAddress) {
-      args.push("--derived-object-address", derivedObjectAddress);
-    }
-
-    return runCommand(APTOS_BINARY, args, { cwd: this.workingDir });
   }
 
   /**
-   * Views a specific resource from the simulation session.
+   * Views a specific resource from an account.
    *
+   * In simulation mode, queries the simulation session state.
+   * In live mode, queries the network via REST API.
+   *
+   * @param account - The account address or profile name.
+   * @param resource - The fully qualified resource type (e.g., "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>").
    * @returns The resource as a JSON object.
    */
   viewResource(account: string, resource: string): any {
     if (this.isLiveMode) {
-      throw new Error("viewResource is not supported in live mode");
+      // Resolve profile name to address if needed
+      let address = account;
+      if (!account.startsWith("0x")) {
+        address = this.getAccountAddress(account);
+      }
+
+      // URL-encode the resource type (handles angle brackets, colons, etc.)
+      const encodedResource = encodeURIComponent(resource);
+      const url = `${this.restUrl}/v1/accounts/${address}/resource/${encodedResource}`;
+
+      const response = fetch(url);
+      if (!response.ok) {
+        // Return null result for 404 to match simulation mode behavior
+        if (response.status === 404) {
+          return { Result: null };
+        }
+        throw new Error(
+          `Failed to fetch resource: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      // Wrap response to match simulation format: { Result: data }
+      const resource_response = response.json() as { type: string; data: any };
+      return { Result: resource_response.data };
+    } else {
+      const args = [
+        "move",
+        "sim",
+        "view-resource",
+        "--session",
+        this.getSessionPath(),
+        "--account",
+        account,
+        "--resource",
+        resource,
+      ];
+
+      return runCommand(APTOS_BINARY, args, { cwd: this.workingDir });
     }
-
-    const args = [
-      "move",
-      "sim",
-      "view-resource",
-      "--session",
-      this.getSessionPath(),
-      "--account",
-      account,
-      "--resource",
-      resource,
-    ];
-
-    return runCommand(APTOS_BINARY, args, { cwd: this.workingDir });
   }
 
   /**
@@ -914,23 +1115,59 @@ class Harness {
    * @returns The APT balance as a bigint.
    */
   getAPTBalanceFungibleStore(account: string): bigint {
-    const res = this.viewResourceGroup(
-      account,
-      "0x1::object::ObjectGroup",
-      "0xA",
-    );
+    if (this.isLiveMode) {
+      // Resolve profile name to address if needed
+      let address = account;
+      if (!account.startsWith("0x")) {
+        address = this.getAccountAddress(account);
+      }
 
-    if (
-      !res ||
-      !res.Result ||
-      !res.Result["0x1::fungible_asset::FungibleStore"]
-    ) {
-      return BigInt(0);
+      // Compute primary fungible store address
+      const storeAddress = computeDerivedObjectAddress(address, "0xA");
+
+      // Fetch the FungibleStore resource directly
+      const resourceType = encodeURIComponent(
+        "0x1::fungible_asset::FungibleStore",
+      );
+      const url = `${this.restUrl}/v1/accounts/${storeAddress}/resource/${resourceType}`;
+      const response = fetch(url);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return BigInt(0);
+        }
+        throw new Error(
+          `Failed to fetch FungibleStore: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const resource = response.json() as { type: string; data: any };
+      return BigInt(resource.data.balance);
+    } else {
+      const res = this.viewResourceGroup(
+        account,
+        "0x1::object::ObjectGroup",
+        "0xA",
+      );
+
+      if (
+        !res ||
+        !res.Result ||
+        !res.Result["0x1::fungible_asset::FungibleStore"]
+      ) {
+        return BigInt(0);
+      }
+
+      return BigInt(res.Result["0x1::fungible_asset::FungibleStore"].balance);
     }
-
-    return BigInt(res.Result["0x1::fungible_asset::FungibleStore"].balance);
   }
 
+  /**
+   * Cleans up the harness by removing the temporary working directory.
+   *
+   * After calling this method, the harness instance becomes "poisoned" and any
+   * subsequent method calls (except cleanup itself) will throw an error.
+   */
   cleanup(): void {
     this.poisoned = true;
     try {
@@ -996,6 +1233,90 @@ class Harness {
       addr = "0x" + addr;
     }
     return addr;
+  }
+
+  /**
+   * Fetches events for a transaction.
+   *
+   * In simulation mode, reads from the events.json file in the latest transaction directory.
+   * In live mode, fetches the transaction from the REST API.
+   *
+   * @param transactionHash - The transaction hash to fetch events for.
+   * @returns The events array, or undefined if not available.
+   */
+  private fetchTransactionEvents(transactionHash: string): any[] | undefined {
+    if (this.isLiveMode) {
+      // Live mode: fetch from REST API
+      const url = `${this.restUrl}/v1/transactions/by_hash/${transactionHash}`;
+      const response = fetch(url);
+
+      if (!response.ok) {
+        console.warn(
+          `Failed to fetch transaction events: ${response.status} ${response.statusText}`,
+        );
+        return undefined;
+      }
+
+      const txData = response.json() as { events?: any[] };
+      return txData.events;
+    } else {
+      // Simulation mode: read from events.json in the latest transaction directory
+      const sessionPath = this.getSessionPath();
+
+      if (!existsSync(sessionPath)) {
+        return undefined;
+      }
+
+      try {
+        // Read config.json to get the transaction count
+        const configPath = join(sessionPath, "config.json");
+        if (!existsSync(configPath)) {
+          return undefined;
+        }
+
+        const config = JSON.parse(readFileSync(configPath, "utf8"));
+        const lastTxIndex = config.ops - 1;
+
+        // Find the directory starting with "[{lastTxIndex}]"
+        const { readdirSync } = require("fs");
+        const files = readdirSync(sessionPath) as string[];
+        const prefix = `[${lastTxIndex}]`;
+        const txDir = files.find((f: string) => f.startsWith(prefix));
+
+        if (!txDir) {
+          return undefined;
+        }
+
+        const eventsPath = join(sessionPath, txDir, "events.json");
+        if (!existsSync(eventsPath)) {
+          return undefined;
+        }
+
+        const eventsContent = readFileSync(eventsPath, "utf8");
+        const rawEvents = JSON.parse(eventsContent);
+
+        // Transform simulation event format to match REST API format
+        // Simulation format: { V2: { type_tag: "...", event_data: {...} } }
+        // REST API format: { type: "...", data: {...} }
+        if (Array.isArray(rawEvents)) {
+          return rawEvents.map((event: any) => {
+            if (event.V2) {
+              return {
+                type: event.V2.type_tag,
+                data: event.V2.event_data,
+              };
+            }
+            // Return as-is if already in expected format
+            return event;
+          });
+        }
+
+        return undefined;
+      } catch (e) {
+        console.warn(`Failed to read events: ${e}`);
+        return undefined;
+      }
+    }
   }
 }
 
