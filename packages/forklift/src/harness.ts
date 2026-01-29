@@ -1212,10 +1212,13 @@ class Harness {
 
 export {
   Harness,
+  type TransactionOptions,
+  type FunctionCallOptions,
+  type PackageOptions,
   type MoveRunOptions,
+  type MoveRunScriptOptions,
   type ViewOptions,
   type PublishOptions,
   type DeployCodeObjectOptions,
   type UpgradeCodeObjectOptions,
-  type MoveRunScriptOptions,
 };

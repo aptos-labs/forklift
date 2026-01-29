@@ -1,4 +1,4 @@
-name: Run Live Tests
+name: Live Tests
 
 on:
   pull_request:
@@ -20,12 +20,7 @@ jobs:
         cache-dependency-path: '**/package-lock.json'
 
     - name: Install Aptos CLI
-      run: |
-        wget -q https://github.com/aptos-labs/aptos-core/releases/download/aptos-cli-v7.14.1/aptos-cli-7.14.1-Ubuntu-22.04-x86_64.zip
-        unzip -q aptos-cli-7.14.1-Ubuntu-22.04-x86_64.zip
-        chmod +x aptos
-        echo "$(pwd)" >> $GITHUB_PATH
-        ./aptos --version
+      uses: ./.github/actions/setup-aptos-cli
 
     - name: Build Forklift
       working-directory: packages/forklift

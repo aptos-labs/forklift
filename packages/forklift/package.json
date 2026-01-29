@@ -13,17 +13,17 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "@types/jest": "^29.5.14",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
     "@types/sync-fetch": "^0.4.3",
-    "prettier": "^3.6.2"
+    "prettier": "^3.8.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@aptos-labs/ts-sdk": "^4.0.0",
-    "@types/js-yaml": "^4.0.9",
-    "@types/node": "^24.3.1",
+    "@aptos-labs/ts-sdk": "^5.1.6",
     "js-yaml": "^4.1.1",
-    "smol-toml": "^1.5.2",
-    "sync-fetch": "^0.6.0",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.9.2"
+    "smol-toml": "^1.6.0",
+    "sync-fetch": "^0.6.0"
   }
 }

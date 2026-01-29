@@ -1,4 +1,4 @@
-name: Forklift Tests
+name: TipJar Tests
 
 on:
   pull_request:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  run-forklift-tests:
+  run-tip-jar-tests:
     runs-on: ubuntu-latest
 
     steps:
@@ -28,10 +28,8 @@ jobs:
         npm ci
         npm run build
 
-    - name: Run Forklift Tests
-      working-directory: packages/testsuite
-      env:
-        APTOS_API_KEY: ${{ secrets.APTOS_API_KEY }}
+    - name: Run Example TipJar Tests
+      working-directory: packages/example-tip-jar
       run: |
         npm ci
         npm test
