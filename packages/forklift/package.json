@@ -1,16 +1,42 @@
 {
   "name": "@aptos-labs/forklift",
   "version": "1.0.0",
-  "description": "",
+  "description": "TypeScript framework for developing, testing, and scripting Aptos Move smart contracts",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "npm run build",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\""
   },
-  "author": "",
+  "keywords": [
+    "aptos",
+    "move",
+    "blockchain",
+    "smart-contracts",
+    "testing",
+    "simulation",
+    "web3"
+  ],
+  "author": "Aptos Labs",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aptos-labs/forklift.git",
+    "directory": "packages/forklift"
+  },
+  "homepage": "https://github.com/aptos-labs/forklift#readme",
+  "bugs": {
+    "url": "https://github.com/aptos-labs/forklift/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "devDependencies": {
     "@types/jest": "^29.5.14",
     "@types/js-yaml": "^4.0.9",
