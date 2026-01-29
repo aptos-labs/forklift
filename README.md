@@ -18,7 +18,7 @@ Forklift is a TypeScript framework for developing, testing, and scripting Aptos 
 ## Prerequisites
 
 - **Node.js** v18 or later
-- **Aptos CLI** v7.14.0 or later ([installation guide](https://aptos.dev/tools/aptos-cli/))
+- **Aptos CLI** v7.14.1 or later ([installation guide](https://aptos.dev/tools/aptos-cli/))
 
 ## Installation
 
@@ -66,9 +66,9 @@ All interactions with Forklift go through the `Harness` class. Create one using 
 
 | Factory Method | Mode | Use For |
 |---------------|------|---------|
-| `Harness.createLocal()` | Local simulation | Development, unit tests, CI |
+| `Harness.createLocal()` | Local simulation | Development, unit/integration tests, CI |
 | `Harness.createNetworkFork(network, apiKey)` | Network forking | Testing against real state, dry-runs |
-| `Harness.createLive(network)` | Live execution | Deploying, production scripts |
+| `Harness.createLive(network)` | Live execution | Deploying and interacting with contracts for real |
 
 **Local simulation** is your starting point. It runs entirely in memory with no network dependencies — perfect for rapid iteration during development and for CI pipelines.
 
@@ -158,6 +158,9 @@ const result = harness.deployCodeObject({
 | `namedAddresses` | No | Additional named address mappings |
 | `includedArtifacts` | No | If true, includes artifacts in the package |
 | `chunked` | No | If true, uses chunked upload for large packages |
+| `gasUnitPrice` | No | Gas unit price |
+| `maxGas` | No | Maximum gas units |
+| `expirationSecs` | No | Transaction expiration in seconds |
 | `includeEvents` | No | If true, includes events in the result |
 | `extraFlags` | No | Additional flags passed to the CLI command |
 
@@ -172,6 +175,9 @@ const result = harness.deployCodeObject({
 | `namedAddresses` | No | Additional named address mappings |
 | `includedArtifacts` | No | If true, includes artifacts in the package |
 | `chunked` | No | If true, uses chunked upload for large packages |
+| `gasUnitPrice` | No | Gas unit price |
+| `maxGas` | No | Maximum gas units |
+| `expirationSecs` | No | Transaction expiration in seconds |
 | `includeEvents` | No | If true, includes events in the result |
 | `extraFlags` | No | Additional flags passed to the CLI command |
 
@@ -184,6 +190,9 @@ const result = harness.deployCodeObject({
 | `namedAddresses` | No | Named address mappings |
 | `includedArtifacts` | No | If true, includes artifacts in the package |
 | `chunked` | No | If true, uses chunked upload for large packages |
+| `gasUnitPrice` | No | Gas unit price |
+| `maxGas` | No | Maximum gas units |
+| `expirationSecs` | No | Transaction expiration in seconds |
 | `includeEvents` | No | If true, includes events in the result |
 | `extraFlags` | No | Additional flags passed to the CLI command |
 
