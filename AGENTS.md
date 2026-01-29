@@ -11,6 +11,10 @@ This design has key benefits:
 - **Fast to iterate** — changes are localized, easy to test
 - **High test coverage** — simple code is practical to cover thoroughly
 - **Stays in sync** — leveraging the CLI means we inherit improvements automatically
+- **Portable** — the thin design makes it feasible to port to other languages (Python, Go)
+- **AI-friendly** — structured boilerplate with clear logic separation makes this codebase easy for AI to understand and evolve
+
+Forklift was largely built using AI agents. The design choices above weren't accidental — they make the codebase maintainable both by humans and AI. Documentation serves a dual purpose: clarifying design for human engineers and providing permanent context for AI. Tests act as precise specs that AI can verify against.
 
 ## Repository Structure
 
@@ -28,7 +32,7 @@ forklift/
 ### Package Details
 
 **`packages/forklift/`** - The core library
-- `src/harness.ts` - The `Harness` class (~1300 lines). Nearly all Forklift functionality lives here.
+- `src/harness.ts` - The `Harness` class (~1200 lines). Nearly all Forklift functionality lives here.
 - `src/index.ts` - Public API exports
 - `src/util.ts` - Utility functions (assertions, etc.)
 
@@ -120,6 +124,16 @@ So: check `result.Result.success` for transaction outcomes, use try/catch for in
 | **Live** (`createLive`) | Actually deploying or executing on a real network. Use sparingly — costs gas, changes are permanent. |
 
 Rule of thumb: Start with local. Only use fork when you need real chain state. Only use live when you're ready to execute for real.
+
+### Code Organization
+
+The harness uses interface inheritance and helper functions to reduce duplication:
+
+- **Base interfaces** (`TransactionOptions`, `FunctionCallOptions`, `PackageOptions`) capture common fields. Method-specific interfaces extend these.
+- **Helper functions** (`addTransactionOptions`, `addNamedAddresses`, etc.) build CLI arguments from options objects.
+- **`runAptos(args)`** private method wraps all CLI calls with the working directory.
+
+When adding new harness methods, look for existing interfaces and helpers to reuse. Check the top of `harness.ts` for current interfaces and helpers.
 
 ## Code Conventions
 

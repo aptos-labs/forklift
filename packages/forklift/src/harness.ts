@@ -7,6 +7,7 @@ import {
   writeFileSync,
   existsSync,
   mkdirSync,
+  readdirSync,
 } from "fs";
 import path, { join } from "path";
 import { tmpdir } from "os";
@@ -165,14 +166,26 @@ interface HarnessOptions {
   faucetUrl?: string;
 }
 
-interface MoveRunOptions {
+interface TransactionOptions {
   sender: string;
-  functionId: string;
-  typeArgs?: string[];
-  args?: string[];
   gasUnitPrice?: number;
   maxGas?: number;
   expirationSecs?: number;
+}
+
+interface FunctionCallOptions {
+  typeArgs?: string[];
+  args?: string[];
+}
+
+interface PackageOptions {
+  namedAddresses?: { [key: string]: string };
+  includedArtifacts?: string;
+  chunked?: boolean;
+}
+
+interface MoveRunOptions extends TransactionOptions, FunctionCallOptions {
+  functionId: string;
   extraFlags?: string[];
   /**
    * If true, fetches and includes events in the result.
@@ -182,17 +195,11 @@ interface MoveRunOptions {
   includeEvents?: boolean;
 }
 
-interface MoveRunScriptOptions {
-  sender: string;
+interface MoveRunScriptOptions extends TransactionOptions, FunctionCallOptions {
   scriptPath?: string;
   packageDir: string;
   scriptName: string;
   namedAddresses?: { [key: string]: string };
-  args?: string[];
-  typeArgs?: string[];
-  gasUnitPrice?: number;
-  maxGas?: number;
-  expirationSecs?: number;
   compileExtraFlags?: string[];
   runExtraFlags?: string[];
   /**
@@ -201,21 +208,13 @@ interface MoveRunScriptOptions {
   includeEvents?: boolean;
 }
 
-interface ViewOptions {
+interface ViewOptions extends FunctionCallOptions {
   functionId: string;
-  typeArgs?: string[];
-  args?: string[];
   extraFlags?: string[];
 }
 
-interface PublishOptions {
-  sender: string;
+interface PublishOptions extends TransactionOptions, PackageOptions {
   packageDir: string;
-
-  namedAddresses?: { [key: string]: string };
-  includedArtifacts?: string;
-
-  chunked?: boolean;
   extraFlags?: string[];
   /**
    * If true, fetches and includes events in the result.
@@ -223,15 +222,9 @@ interface PublishOptions {
   includeEvents?: boolean;
 }
 
-interface DeployCodeObjectOptions {
-  sender: string;
+interface DeployCodeObjectOptions extends TransactionOptions, PackageOptions {
   packageDir: string;
   packageAddressName: string;
-
-  namedAddresses?: { [key: string]: string };
-  includedArtifacts?: string;
-
-  chunked?: boolean;
   extraFlags?: string[];
   /**
    * If true, fetches and includes events in the result.
@@ -239,21 +232,65 @@ interface DeployCodeObjectOptions {
   includeEvents?: boolean;
 }
 
-interface UpgradeCodeObjectOptions {
-  sender: string;
+interface UpgradeCodeObjectOptions extends TransactionOptions, PackageOptions {
   packageDir: string;
   packageAddressName: string;
   objectAddress: string;
-
-  namedAddresses?: { [key: string]: string };
-  includedArtifacts?: string;
-
-  chunked?: boolean;
   extraFlags?: string[];
   /**
    * If true, fetches and includes events in the result.
    */
   includeEvents?: boolean;
+}
+
+function addTransactionOptions(args: string[], options: TransactionOptions) {
+  if (options.gasUnitPrice !== undefined) {
+    args.push("--gas-unit-price", options.gasUnitPrice.toString());
+  }
+  if (options.maxGas !== undefined) {
+    args.push("--max-gas", options.maxGas.toString());
+  }
+  if (options.expirationSecs !== undefined) {
+    args.push("--expiration-secs", options.expirationSecs.toString());
+  }
+}
+
+function addNamedAddresses(
+  args: string[],
+  namedAddresses?: { [key: string]: string },
+) {
+  if (namedAddresses) {
+    args.push("--named-addresses");
+    args.push(
+      Object.entries(namedAddresses)
+        .map(([key, value]) => `${key}=${value}`)
+        .join(","),
+    );
+  }
+}
+
+function addTypeArgsAndArgs(
+  args: string[],
+  options: { typeArgs?: string[]; args?: string[] },
+) {
+  if (options.typeArgs && options.typeArgs.length > 0) {
+    args.push("--type-args", ...options.typeArgs);
+  }
+  if (options.args && options.args.length > 0) {
+    args.push("--args", ...options.args);
+  }
+}
+
+function addPackageOptions(
+  args: string[],
+  options: { includedArtifacts?: string; chunked?: boolean },
+) {
+  if (options.includedArtifacts) {
+    args.push("--included-artifacts", options.includedArtifacts);
+  }
+  if (options.chunked) {
+    args.push("--chunked-publish");
+  }
 }
 
 /**
@@ -305,6 +342,13 @@ class Harness {
    */
   getSessionPath(): string {
     return join(this.workingDir, "data");
+  }
+
+  /**
+   * Runs an Aptos CLI command in the harness working directory.
+   */
+  private runAptos(args: string[]): any {
+    return runCommand(APTOS_BINARY, args, { cwd: this.workingDir });
   }
 
   private constructor(options: HarnessOptions) {
@@ -520,9 +564,7 @@ class Harness {
       }
     }
 
-    const res = runCommand(APTOS_BINARY, args, {
-      cwd: this.workingDir,
-    });
+    const res = this.runAptos(args);
 
     if (!res || res.Result !== "Success") {
       throw new Error(
@@ -561,22 +603,16 @@ class Harness {
 
       const accountAddress = this.getAccountAddress(account);
 
-      const res = runCommand(
-        APTOS_BINARY,
-        [
-          "account",
-          "fund-with-faucet",
-          "--account",
-          accountAddress,
-          "--faucet-url",
-          this.faucetUrl,
-          "--amount",
-          amount.toString(),
-        ],
-        {
-          cwd: this.workingDir,
-        },
-      );
+      const res = this.runAptos([
+        "account",
+        "fund-with-faucet",
+        "--account",
+        accountAddress,
+        "--faucet-url",
+        this.faucetUrl,
+        "--amount",
+        amount.toString(),
+      ]);
 
       if (!res || !res.Result || !res.Result.startsWith("Added")) {
         throw new Error(
@@ -585,18 +621,12 @@ class Harness {
       }
     } else {
       // prettier-ignore
-      const res = runCommand(
-        APTOS_BINARY,
-        [
-          "move", "sim", "fund",
-          "--session", this.getSessionPath(),
-          "--account", account,
-          "--amount", amount.toString(),
-        ],
-        {
-          cwd: this.workingDir,
-        },
-      );
+      const res = this.runAptos([
+        "move", "sim", "fund",
+        "--session", this.getSessionPath(),
+        "--account", account,
+        "--amount", amount.toString(),
+      ]);
 
       // FIXME: handle non-existent profile
 
@@ -629,48 +659,16 @@ class Harness {
 
     args.push("--profile", options.sender, "--function-id", options.functionId);
 
-    // Add optional type arguments
-    if (options.typeArgs && options.typeArgs.length > 0) {
-      args.push("--type-args");
-      args.push(...options.typeArgs);
-    }
-
-    // Add optional arguments
-    if (options.args && options.args.length > 0) {
-      args.push("--args");
-      args.push(...options.args);
-    }
-
-    // Add optional gas unit price
-    if (options.gasUnitPrice !== undefined) {
-      args.push("--gas-unit-price", options.gasUnitPrice.toString());
-    }
-
-    // Add optional max gas
-    if (options.maxGas !== undefined) {
-      args.push("--max-gas", options.maxGas.toString());
-    }
-
-    // Add optional expiration seconds
-    if (options.expirationSecs !== undefined) {
-      args.push("--expiration-secs", options.expirationSecs.toString());
-    }
+    addTypeArgsAndArgs(args, options);
+    addTransactionOptions(args, options);
 
     if (options.extraFlags) {
       args.push(...options.extraFlags);
     }
 
-    const res = runCommand(APTOS_BINARY, args, {
-      cwd: this.workingDir,
-    });
+    const res = this.runAptos(args);
 
-    // Fetch events if requested
-    if (options.includeEvents && res.Result?.success) {
-      const events = this.fetchTransactionEvents(res.Result.transaction_hash);
-      if (events !== undefined) {
-        res.Result.events = events;
-      }
-    }
+    this.maybeIncludeEvents(res, options.includeEvents);
 
     return res;
   }
@@ -690,22 +688,13 @@ class Harness {
       options.packageDir,
     ];
 
-    if (options.namedAddresses) {
-      compileArgs.push("--named-addresses");
-      compileArgs.push(
-        Object.entries(options.namedAddresses)
-          .map(([key, value]) => `${key}=${value}`)
-          .join(","),
-      );
-    }
+    addNamedAddresses(compileArgs, options.namedAddresses);
 
     if (options.compileExtraFlags) {
       compileArgs.push(...options.compileExtraFlags);
     }
 
-    runCommand(APTOS_BINARY, compileArgs, {
-      cwd: this.workingDir,
-    });
+    this.runAptos(compileArgs);
 
     const packageName = getMovePackageNameFromManifest(options.packageDir);
 
@@ -733,48 +722,16 @@ class Harness {
       ),
     );
 
-    // Add optional type arguments
-    if (options.typeArgs && options.typeArgs.length > 0) {
-      runArgs.push("--type-args");
-      runArgs.push(...options.typeArgs);
-    }
-
-    // Add optional arguments
-    if (options.args && options.args.length > 0) {
-      runArgs.push("--args");
-      runArgs.push(...options.args);
-    }
-
-    // Add optional gas unit price
-    if (options.gasUnitPrice !== undefined) {
-      runArgs.push("--gas-unit-price", options.gasUnitPrice.toString());
-    }
-
-    // Add optional max gas
-    if (options.maxGas !== undefined) {
-      runArgs.push("--max-gas", options.maxGas.toString());
-    }
-
-    // Add optional expiration seconds
-    if (options.expirationSecs !== undefined) {
-      runArgs.push("--expiration-secs", options.expirationSecs.toString());
-    }
+    addTypeArgsAndArgs(runArgs, options);
+    addTransactionOptions(runArgs, options);
 
     if (options.runExtraFlags) {
       runArgs.push(...options.runExtraFlags);
     }
 
-    const res = runCommand(APTOS_BINARY, runArgs, {
-      cwd: this.workingDir,
-    });
+    const res = this.runAptos(runArgs);
 
-    // Fetch events if requested
-    if (options.includeEvents && res.Result?.success) {
-      const events = this.fetchTransactionEvents(res.Result.transaction_hash);
-      if (events !== undefined) {
-        res.Result.events = events;
-      }
-    }
+    this.maybeIncludeEvents(res, options.includeEvents);
 
     return res;
   }
@@ -800,39 +757,17 @@ class Harness {
 
     args.push("--profile", options.sender, "--package-dir", options.packageDir);
 
-    if (options.namedAddresses) {
-      args.push("--named-addresses");
-      args.push(
-        Object.entries(options.namedAddresses)
-          .map(([key, value]) => `${key}=${value}`)
-          .join(","),
-      );
-    }
-
-    if (options.includedArtifacts) {
-      args.push("--included-artifacts");
-      args.push(options.includedArtifacts);
-    }
-
-    if (options.chunked) {
-      args.push("--chunked-publish");
-    }
+    addNamedAddresses(args, options.namedAddresses);
+    addPackageOptions(args, options);
+    addTransactionOptions(args, options);
 
     if (options.extraFlags) {
       args.push(...options.extraFlags);
     }
 
-    const res = runCommand(APTOS_BINARY, args, {
-      cwd: this.workingDir,
-    });
+    const res = this.runAptos(args);
 
-    // Fetch events if requested
-    if (options.includeEvents && res.Result?.success) {
-      const events = this.fetchTransactionEvents(res.Result.transaction_hash);
-      if (events !== undefined) {
-        res.Result.events = events;
-      }
-    }
+    this.maybeIncludeEvents(res, options.includeEvents);
 
     return res;
   }
@@ -863,31 +798,15 @@ class Harness {
       options.packageAddressName,
     );
 
-    if (options.namedAddresses) {
-      args.push("--named-addresses");
-      args.push(
-        Object.entries(options.namedAddresses)
-          .map(([key, value]) => `${key}=${value}`)
-          .join(","),
-      );
-    }
-
-    if (options.includedArtifacts) {
-      args.push("--included-artifacts");
-      args.push(options.includedArtifacts);
-    }
-
-    if (options.chunked) {
-      args.push("--chunked-publish");
-    }
+    addNamedAddresses(args, options.namedAddresses);
+    addPackageOptions(args, options);
+    addTransactionOptions(args, options);
 
     if (options.extraFlags) {
       args.push(...options.extraFlags);
     }
 
-    const res = runCommand(APTOS_BINARY, args, {
-      cwd: this.workingDir,
-    });
+    const res = this.runAptos(args);
 
     // Normalize deployed_object_address to include 0x prefix
     if (res?.Result?.deployed_object_address) {
@@ -897,13 +816,7 @@ class Harness {
       }
     }
 
-    // Fetch events if requested
-    if (options.includeEvents && res.Result?.success) {
-      const events = this.fetchTransactionEvents(res.Result.transaction_hash);
-      if (events !== undefined) {
-        res.Result.events = events;
-      }
-    }
+    this.maybeIncludeEvents(res, options.includeEvents);
 
     return res;
   }
@@ -936,39 +849,17 @@ class Harness {
       options.objectAddress,
     );
 
-    if (options.namedAddresses) {
-      args.push("--named-addresses");
-      args.push(
-        Object.entries(options.namedAddresses)
-          .map(([key, value]) => `${key}=${value}`)
-          .join(","),
-      );
-    }
-
-    if (options.includedArtifacts) {
-      args.push("--included-artifacts");
-      args.push(options.includedArtifacts);
-    }
-
-    if (options.chunked) {
-      args.push("--chunked-publish");
-    }
+    addNamedAddresses(args, options.namedAddresses);
+    addPackageOptions(args, options);
+    addTransactionOptions(args, options);
 
     if (options.extraFlags) {
       args.push(...options.extraFlags);
     }
 
-    const res = runCommand(APTOS_BINARY, args, {
-      cwd: this.workingDir,
-    });
+    const res = this.runAptos(args);
 
-    // Fetch events if requested
-    if (options.includeEvents && res.Result?.success) {
-      const events = this.fetchTransactionEvents(res.Result.transaction_hash);
-      if (events !== undefined) {
-        res.Result.events = events;
-      }
-    }
+    this.maybeIncludeEvents(res, options.includeEvents);
 
     return res;
   }
@@ -992,23 +883,13 @@ class Harness {
 
     args.push("--function-id", options.functionId);
 
-    if (options.typeArgs && options.typeArgs.length > 0) {
-      args.push("--type-args");
-      args.push(...options.typeArgs);
-    }
-
-    if (options.args && options.args.length > 0) {
-      args.push("--args");
-      args.push(...options.args);
-    }
+    addTypeArgsAndArgs(args, options);
 
     if (options.extraFlags) {
       args.push(...options.extraFlags);
     }
 
-    const res = runCommand(APTOS_BINARY, args, {
-      cwd: this.workingDir,
-    });
+    const res = this.runAptos(args);
 
     return res;
   }
@@ -1051,7 +932,7 @@ class Harness {
         args.push("--derived-object-address", derivedObjectAddress);
       }
 
-      return runCommand(APTOS_BINARY, args, { cwd: this.workingDir });
+      return this.runAptos(args);
     }
   }
 
@@ -1104,7 +985,7 @@ class Harness {
         resource,
       ];
 
-      return runCommand(APTOS_BINARY, args, { cwd: this.workingDir });
+      return this.runAptos(args);
     }
   }
 
@@ -1219,9 +1100,7 @@ class Harness {
    * @returns The account address as a string.
    */
   getAccountAddress(profile: string): string {
-    const res = runCommand(APTOS_BINARY, ["config", "show-profiles"], {
-      cwd: this.workingDir,
-    });
+    const res = this.runAptos(["config", "show-profiles"]);
 
     if (!res || !res.Result || !res.Result[profile]) {
       throw new Error(`Profile ${profile} not found`);
@@ -1233,6 +1112,18 @@ class Harness {
       addr = "0x" + addr;
     }
     return addr;
+  }
+
+  /**
+   * If includeEvents is true and the transaction succeeded, fetches and attaches events to the result.
+   */
+  private maybeIncludeEvents(res: any, includeEvents?: boolean): void {
+    if (includeEvents && res.Result?.success) {
+      const events = this.fetchTransactionEvents(res.Result.transaction_hash);
+      if (events !== undefined) {
+        res.Result.events = events;
+      }
+    }
   }
 
   /**
@@ -1278,7 +1169,6 @@ class Harness {
         const lastTxIndex = config.ops - 1;
 
         // Find the directory starting with "[{lastTxIndex}]"
-        const { readdirSync } = require("fs");
         const files = readdirSync(sessionPath) as string[];
         const prefix = `[${lastTxIndex}]`;
         const txDir = files.find((f: string) => f.startsWith(prefix));

@@ -219,4 +219,104 @@ describe("Live Mode", () => {
       expect(packageMetadata.upgrade_number).toBe("1");
     });
   });
+
+  describe("Large Package Publishing", () => {
+    let largePackageSender: string;
+    let largePackageAddress: string;
+    let largeCodeObjectAddress: string;
+
+    it("initialize profile for large package tests", async () => {
+      largePackageSender = "charlie";
+      harness.init_cli_profile(largePackageSender);
+      harness.fundAccount(largePackageSender, 500000000);
+      largePackageAddress = harness.getAccountAddress(largePackageSender);
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }, 10000);
+
+    // --- publishPackage with chunked option ---
+
+    it("publish large package with chunked option", () => {
+      const packageDir = path.join(
+        __dirname,
+        "../../move_packages/large_package",
+      );
+      const publishRes = harness.publishPackage({
+        sender: largePackageSender,
+        packageDir,
+        namedAddresses: { my_addr: largePackageAddress },
+        chunked: true,
+        includeEvents: true,
+        maxGas: 2000000, // Note: Need to specify max gas manually to workaround remote simulation error
+      });
+      assertTxnSuccess(publishRes);
+      expectFeeStatementEvent(publishRes.Result.events);
+    });
+
+    it("verify large package in PackageRegistry", () => {
+      const registry = harness.viewResource(
+        largePackageAddress,
+        "0x1::code::PackageRegistry",
+      );
+      expect(registry.Result).toBeDefined();
+      expect(registry.Result.packages).toBeDefined();
+      expect(registry.Result.packages.length).toBeGreaterThan(0);
+
+      const packageMetadata = registry.Result.packages.find(
+        (pkg: any) => pkg.name === "LargePackage",
+      );
+      expect(packageMetadata).toBeDefined();
+      expect(packageMetadata.upgrade_number).toBe("0");
+    });
+
+    it("verify data length via view function (publishPackage)", () => {
+      const res = harness.runViewFunction({
+        functionId: `${largePackageAddress}::large_module::get_data_len`,
+      });
+      expect(res.Result).toBeDefined();
+      expect(Number(res.Result[0])).toBeGreaterThan(100000);
+    });
+
+    // --- deployCodeObject with chunked option ---
+
+    it("deploy large code object with chunked option", () => {
+      const packageDir = path.join(
+        __dirname,
+        "../../move_packages/large_package",
+      );
+      const res = harness.deployCodeObject({
+        sender: largePackageSender,
+        packageDir,
+        packageAddressName: "my_addr",
+        chunked: true,
+        includeEvents: true,
+        maxGas: 2000000, // Note: Need to specify max gas manually to workaround remote simulation error
+      });
+      assertTxnSuccess(res);
+      largeCodeObjectAddress = res.Result.deployed_object_address;
+      expect(largeCodeObjectAddress).toBeDefined();
+      expect(largeCodeObjectAddress).toMatch(/^0x[a-fA-F0-9]+$/);
+      expectFeeStatementEvent(res.Result.events);
+    });
+
+    it("verify large code object deployment via PackageRegistry", () => {
+      const registry = harness.viewResource(
+        largeCodeObjectAddress,
+        "0x1::code::PackageRegistry",
+      );
+      expect(registry.Result).toBeDefined();
+      const packageMetadata = registry.Result.packages.find(
+        (pkg: any) => pkg.name === "LargePackage",
+      );
+      expect(packageMetadata).toBeDefined();
+      expect(packageMetadata.upgrade_number).toBe("0");
+    });
+
+    it("verify data length via view function (deployCodeObject)", () => {
+      const res = harness.runViewFunction({
+        functionId: `${largeCodeObjectAddress}::large_module::get_data_len`,
+      });
+      expect(res.Result).toBeDefined();
+      expect(Number(res.Result[0])).toBeGreaterThan(100000);
+    });
+  });
 });

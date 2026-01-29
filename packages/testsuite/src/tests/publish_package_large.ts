@@ -10,22 +10,8 @@ describe("publish package (large)", () => {
   });
 
   it("fund sender account", () => {
-    // Note: Here we fund the sender account by transferring from a different funder account.
-    //       Without this, the package upgrade transaction will fail for some unknown reason.
-    //
-    //       [aptos_vm] Unexpected success epilogue Move abort: 01::object::393218 (Category: 6 Reason: 2)
     harness.init_cli_profile(sender);
-
-    const funder = "funder";
-    harness.init_cli_profile(funder);
-    harness.fundAccount(funder, 200000000);
-
-    const res = harness.runMoveFunction({
-      sender: funder,
-      functionId: "0x1::aptos_account::transfer",
-      args: ["address:alice", "u64:100000000"],
-    });
-    assertTxnSuccess(res);
+    harness.fundAccount(sender, 100000000);
   });
 
   it("should publish large package and verify registry", () => {
