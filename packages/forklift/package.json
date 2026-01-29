@@ -1,6 +1,6 @@
 {
   "name": "@aptos-labs/forklift",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "TypeScript framework for developing, testing, and scripting Aptos Move smart contracts",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
