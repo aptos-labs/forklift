@@ -4,7 +4,7 @@ inputs:
   version:
     description: 'Aptos CLI version to install'
     required: false
-    default: '7.14.1'
+    default: '7.14.2'
 runs:
   using: 'composite'
   steps:

@@ -17,7 +17,7 @@ Forklift is a TypeScript framework for developing, testing, and scripting Aptos 
 npm install @aptos-labs/forklift
 ```
 
-**Prerequisites:** Node.js v18+ and [Aptos CLI](https://aptos.dev/tools/aptos-cli/) v7.14.1+
+**Prerequisites:** Node.js v18+ and [Aptos CLI](https://aptos.dev/tools/aptos-cli/) v7.14.2+
 
 ## Quick Start
 
