@@ -225,6 +225,32 @@ const balance = result.Result[0];
 | `getCurrentTimeMicros()` | Get the current chain timestamp. |
 | `getGasSchedule()` | Get the gas schedule. |
 
+### Block & Epoch Control
+
+These methods are only available in simulation mode (local and network forking).
+
+**`newBlock(options?)`** — Execute a new block metadata transaction, advancing the on-chain timestamp.
+
+```typescript
+// Advance by 1 microsecond (default)
+harness.newBlock();
+
+// Advance by 10 seconds
+harness.newBlock({ offsetUsecs: 10_000_000 });
+
+// Set an absolute timestamp
+harness.newBlock({ timestampUsecs: 1_800_000_000_000_000 });
+```
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `timestampUsecs` | No | Absolute block timestamp in microseconds |
+| `offsetUsecs` | No | Advance the current timestamp by this many microseconds |
+
+`timestampUsecs` and `offsetUsecs` are mutually exclusive. If neither is provided, the timestamp advances by 1 microsecond. Returns a `NewBlockResult` with `newTimestampUsecs`, `oldEpoch`, and `newEpoch`.
+
+**`advanceEpoch()`** — Advance to the next epoch. Automatically calculates the minimum timestamp needed to cross the epoch boundary and executes a new block metadata transaction at that timestamp, triggering reconfiguration. Returns a `NewBlockResult`.
+
 ### Harness Lifecycle Management
 
 | Method | Description |

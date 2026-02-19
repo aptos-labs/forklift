@@ -184,6 +184,17 @@ interface PackageOptions {
   chunked?: boolean;
 }
 
+interface NewBlockOptions {
+  timestampUsecs?: number | bigint | string;
+  offsetUsecs?: number | bigint | string;
+}
+
+interface NewBlockResult {
+  newTimestampUsecs: bigint;
+  oldEpoch: bigint;
+  newEpoch: bigint;
+}
+
 interface MoveRunOptions extends TransactionOptions, FunctionCallOptions {
   functionId: string;
   extraFlags?: string[];
@@ -636,6 +647,100 @@ class Harness {
         );
       }
     }
+  }
+
+  /**
+   * Executes a new block metadata transaction in the simulation session.
+   *
+   * This runs a real block metadata transaction through the VM. The block prologue
+   * updates the on-chain timestamp and may trigger an epoch change if enough time
+   * has passed since the last reconfiguration.
+   *
+   * Options `timestampUsecs` and `offsetUsecs` are mutually exclusive:
+   * - `timestampUsecs`: sets an absolute block timestamp in microseconds
+   * - `offsetUsecs`: advances the current timestamp by this many microseconds
+   * - If neither is provided, the timestamp advances by 1 microsecond
+   *
+   * Only available in simulation mode.
+   *
+   * @returns An object with the new timestamp and epoch information.
+   * @throws Error if called in live mode, if both timestamp options are set, or if the CLI command fails.
+   */
+  newBlock(options?: NewBlockOptions): NewBlockResult {
+    if (this.isLiveMode) {
+      throw new Error("newBlock is only available in simulation mode");
+    }
+
+    if (
+      options?.timestampUsecs !== undefined &&
+      options?.offsetUsecs !== undefined
+    ) {
+      throw new Error("timestampUsecs and offsetUsecs are mutually exclusive");
+    }
+
+    // prettier-ignore
+    const args = [
+      "move", "sim", "new-block",
+      "--session", this.getSessionPath(),
+    ];
+
+    if (options?.timestampUsecs !== undefined) {
+      args.push("--timestamp-usecs", options.timestampUsecs.toString());
+    }
+    if (options?.offsetUsecs !== undefined) {
+      args.push("--offset-usecs", options.offsetUsecs.toString());
+    }
+
+    const res = this.runAptos(args);
+
+    if (!res || !res.Result) {
+      throw new Error(
+        `aptos move sim new-block failed: ${JSON.stringify(res)}`,
+      );
+    }
+
+    return {
+      newTimestampUsecs: BigInt(res.Result.new_timestamp_usecs),
+      oldEpoch: BigInt(res.Result.old_epoch),
+      newEpoch: BigInt(res.Result.new_epoch),
+    };
+  }
+
+  /**
+   * Advances to the next epoch in the simulation session.
+   *
+   * This calculates the minimum timestamp needed to cross the epoch boundary
+   * and executes a new block at that timestamp, triggering a reconfiguration.
+   *
+   * Only available in simulation mode.
+   *
+   * @returns An object with the new timestamp and epoch information.
+   * @throws Error if called in live mode or if the CLI command fails.
+   */
+  advanceEpoch(): NewBlockResult {
+    if (this.isLiveMode) {
+      throw new Error("advanceEpoch is only available in simulation mode");
+    }
+
+    // prettier-ignore
+    const args = [
+      "move", "sim", "advance-epoch",
+      "--session", this.getSessionPath(),
+    ];
+
+    const res = this.runAptos(args);
+
+    if (!res || !res.Result) {
+      throw new Error(
+        `aptos move sim advance-epoch failed: ${JSON.stringify(res)}`,
+      );
+    }
+
+    return {
+      newTimestampUsecs: BigInt(res.Result.new_timestamp_usecs),
+      oldEpoch: BigInt(res.Result.old_epoch),
+      newEpoch: BigInt(res.Result.new_epoch),
+    };
   }
 
   /**
@@ -1215,6 +1320,8 @@ export {
   type TransactionOptions,
   type FunctionCallOptions,
   type PackageOptions,
+  type NewBlockOptions,
+  type NewBlockResult,
   type MoveRunOptions,
   type MoveRunScriptOptions,
   type ViewOptions,
