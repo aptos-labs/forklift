@@ -8,6 +8,8 @@ import {
   existsSync,
   mkdirSync,
   readdirSync,
+  renameSync,
+  cpSync,
 } from "fs";
 import path, { join } from "path";
 import { tmpdir } from "os";
@@ -171,6 +173,11 @@ interface TransactionOptions {
   gasUnitPrice?: number;
   maxGas?: number;
   expirationSecs?: number;
+  /**
+   * If set, enables gas profiling and moves the gas report to the specified directory path.
+   * Only available in simulation mode.
+   */
+  profileGas?: string;
 }
 
 interface FunctionCallOptions {
@@ -770,9 +777,13 @@ class Harness {
     if (options.extraFlags) {
       args.push(...options.extraFlags);
     }
+    if (options.profileGas) {
+      args.push("--profile-gas");
+    }
 
     const res = this.runAptos(args);
 
+    this.maybeMoveGasReport(options.profileGas);
     this.maybeIncludeEvents(res, options.includeEvents);
 
     return res;
@@ -833,9 +844,13 @@ class Harness {
     if (options.runExtraFlags) {
       runArgs.push(...options.runExtraFlags);
     }
+    if (options.profileGas) {
+      runArgs.push("--profile-gas");
+    }
 
     const res = this.runAptos(runArgs);
 
+    this.maybeMoveGasReport(options.profileGas);
     this.maybeIncludeEvents(res, options.includeEvents);
 
     return res;
@@ -869,9 +884,13 @@ class Harness {
     if (options.extraFlags) {
       args.push(...options.extraFlags);
     }
+    if (options.profileGas) {
+      args.push("--profile-gas");
+    }
 
     const res = this.runAptos(args);
 
+    this.maybeMoveGasReport(options.profileGas);
     this.maybeIncludeEvents(res, options.includeEvents);
 
     return res;
@@ -910,6 +929,9 @@ class Harness {
     if (options.extraFlags) {
       args.push(...options.extraFlags);
     }
+    if (options.profileGas) {
+      args.push("--profile-gas");
+    }
 
     const res = this.runAptos(args);
 
@@ -921,6 +943,7 @@ class Harness {
       }
     }
 
+    this.maybeMoveGasReport(options.profileGas);
     this.maybeIncludeEvents(res, options.includeEvents);
 
     return res;
@@ -961,9 +984,13 @@ class Harness {
     if (options.extraFlags) {
       args.push(...options.extraFlags);
     }
+    if (options.profileGas) {
+      args.push("--profile-gas");
+    }
 
     const res = this.runAptos(args);
 
+    this.maybeMoveGasReport(options.profileGas);
     this.maybeIncludeEvents(res, options.includeEvents);
 
     return res;
@@ -1220,6 +1247,66 @@ class Harness {
   }
 
   /**
+   * Returns the absolute path to the last operation's directory in the session,
+   * or undefined if it cannot be determined.
+   */
+  private getLastOperationDir(): string | undefined {
+    const sessionPath = this.getSessionPath();
+    const configPath = join(sessionPath, "config.json");
+    if (!existsSync(configPath)) {
+      return undefined;
+    }
+
+    const config = JSON.parse(readFileSync(configPath, "utf8"));
+    const lastIndex = config.ops - 1;
+
+    const files = readdirSync(sessionPath) as string[];
+    const prefix = `[${lastIndex}]`;
+    const dir = files.find((f: string) => f.startsWith(prefix));
+
+    return dir ? join(sessionPath, dir) : undefined;
+  }
+
+  /**
+   * If profileGas is set, finds the gas report in the latest operation directory
+   * and moves it to the user-specified path.
+   */
+  private maybeMoveGasReport(profileGas?: string): void {
+    if (!profileGas) return;
+
+    if (this.isLiveMode) {
+      throw new Error("profileGas is only available in simulation mode");
+    }
+
+    const opDir = this.getLastOperationDir();
+    if (!opDir) {
+      throw new Error(
+        "Cannot find gas report: unable to locate last operation directory",
+      );
+    }
+
+    const gasReportSrc = join(opDir, "gas-report");
+    if (!existsSync(gasReportSrc)) {
+      throw new Error(
+        `Cannot find gas report at ${gasReportSrc}. Was --profile-gas passed to the CLI?`,
+      );
+    }
+
+    mkdirSync(profileGas, { recursive: true });
+
+    try {
+      renameSync(gasReportSrc, profileGas);
+    } catch (e: any) {
+      if (e.code === "EXDEV") {
+        cpSync(gasReportSrc, profileGas, { recursive: true });
+        rmSync(gasReportSrc, { recursive: true, force: true });
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  /**
    * If includeEvents is true and the transaction succeeded, fetches and attaches events to the result.
    */
   private maybeIncludeEvents(res: any, includeEvents?: boolean): void {
@@ -1256,33 +1343,13 @@ class Harness {
       const txData = response.json() as { events?: any[] };
       return txData.events;
     } else {
-      // Simulation mode: read from events.json in the latest transaction directory
-      const sessionPath = this.getSessionPath();
-
-      if (!existsSync(sessionPath)) {
-        return undefined;
-      }
-
       try {
-        // Read config.json to get the transaction count
-        const configPath = join(sessionPath, "config.json");
-        if (!existsSync(configPath)) {
+        const opDir = this.getLastOperationDir();
+        if (!opDir) {
           return undefined;
         }
 
-        const config = JSON.parse(readFileSync(configPath, "utf8"));
-        const lastTxIndex = config.ops - 1;
-
-        // Find the directory starting with "[{lastTxIndex}]"
-        const files = readdirSync(sessionPath) as string[];
-        const prefix = `[${lastTxIndex}]`;
-        const txDir = files.find((f: string) => f.startsWith(prefix));
-
-        if (!txDir) {
-          return undefined;
-        }
-
-        const eventsPath = join(sessionPath, txDir, "events.json");
+        const eventsPath = join(opDir, "events.json");
         if (!existsSync(eventsPath)) {
           return undefined;
         }
@@ -1301,7 +1368,6 @@ class Harness {
                 data: event.V2.event_data,
               };
             }
-            // Return as-is if already in expected format
             return event;
           });
         }

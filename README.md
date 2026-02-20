@@ -120,6 +120,7 @@ harness.runMoveFunction({
 | `expirationSecs` | No | Transaction expiration in seconds |
 | `includeEvents` | No | If true, includes events in the result |
 | `extraFlags` | No | Additional flags passed to the CLI command |
+| `profileGas` | No | Directory path to save the gas profiling report (simulation only) |
 
 **`runMoveScript(options)`** — Compile and run a Move script.
 
@@ -137,6 +138,7 @@ harness.runMoveFunction({
 | `includeEvents` | No | If true, includes events in the result |
 | `compileExtraFlags` | No | Additional flags passed to the compile command |
 | `runExtraFlags` | No | Additional flags passed to the run command |
+| `profileGas` | No | Directory path to save the gas profiling report (simulation only) |
 
 ### Deploying Code
 
@@ -163,6 +165,7 @@ const result = harness.deployCodeObject({
 | `expirationSecs` | No | Transaction expiration in seconds |
 | `includeEvents` | No | If true, includes events in the result |
 | `extraFlags` | No | Additional flags passed to the CLI command |
+| `profileGas` | No | Directory path to save the gas profiling report (simulation only) |
 
 **`upgradeCodeObject(options)`** — Upgrade an existing code object.
 
@@ -180,6 +183,7 @@ const result = harness.deployCodeObject({
 | `expirationSecs` | No | Transaction expiration in seconds |
 | `includeEvents` | No | If true, includes events in the result |
 | `extraFlags` | No | Additional flags passed to the CLI command |
+| `profileGas` | No | Directory path to save the gas profiling report (simulation only) |
 
 **`publishPackage(options)`** — Publish a package to an account.
 
@@ -195,6 +199,7 @@ const result = harness.deployCodeObject({
 | `expirationSecs` | No | Transaction expiration in seconds |
 | `includeEvents` | No | If true, includes events in the result |
 | `extraFlags` | No | Additional flags passed to the CLI command |
+| `profileGas` | No | Directory path to save the gas profiling report (simulation only) |
 
 ### Reading State
 
