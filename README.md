@@ -18,7 +18,7 @@ Forklift is a TypeScript framework for developing, testing, and scripting Aptos 
 ## Prerequisites
 
 - **Node.js** v18 or later
-- **Aptos CLI** v7.14.2 or later ([installation guide](https://aptos.dev/tools/aptos-cli/))
+- **Aptos CLI** v8.1.0 or later ([installation guide](https://aptos.dev/tools/aptos-cli/))
 
 ## Installation
 
@@ -120,6 +120,7 @@ harness.runMoveFunction({
 | `expirationSecs` | No | Transaction expiration in seconds |
 | `includeEvents` | No | If true, includes events in the result |
 | `extraFlags` | No | Additional flags passed to the CLI command |
+| `profileGas` | No | Directory path to save the gas profiling report (simulation only) |
 
 **`runMoveScript(options)`** — Compile and run a Move script.
 
@@ -137,6 +138,7 @@ harness.runMoveFunction({
 | `includeEvents` | No | If true, includes events in the result |
 | `compileExtraFlags` | No | Additional flags passed to the compile command |
 | `runExtraFlags` | No | Additional flags passed to the run command |
+| `profileGas` | No | Directory path to save the gas profiling report (simulation only) |
 
 ### Deploying Code
 
@@ -163,6 +165,7 @@ const result = harness.deployCodeObject({
 | `expirationSecs` | No | Transaction expiration in seconds |
 | `includeEvents` | No | If true, includes events in the result |
 | `extraFlags` | No | Additional flags passed to the CLI command |
+| `profileGas` | No | Directory path to save the gas profiling report (simulation only) |
 
 **`upgradeCodeObject(options)`** — Upgrade an existing code object.
 
@@ -180,6 +183,7 @@ const result = harness.deployCodeObject({
 | `expirationSecs` | No | Transaction expiration in seconds |
 | `includeEvents` | No | If true, includes events in the result |
 | `extraFlags` | No | Additional flags passed to the CLI command |
+| `profileGas` | No | Directory path to save the gas profiling report (simulation only) |
 
 **`publishPackage(options)`** — Publish a package to an account.
 
@@ -195,6 +199,7 @@ const result = harness.deployCodeObject({
 | `expirationSecs` | No | Transaction expiration in seconds |
 | `includeEvents` | No | If true, includes events in the result |
 | `extraFlags` | No | Additional flags passed to the CLI command |
+| `profileGas` | No | Directory path to save the gas profiling report (simulation only) |
 
 ### Reading State
 
@@ -224,6 +229,32 @@ const balance = result.Result[0];
 | `getAPTBalanceFungibleStore(account)` | Get APT balance for an account. |
 | `getCurrentTimeMicros()` | Get the current chain timestamp. |
 | `getGasSchedule()` | Get the gas schedule. |
+
+### Block & Epoch Control
+
+These methods are only available in simulation mode (local and network forking).
+
+**`newBlock(options?)`** — Execute a new block metadata transaction, advancing the on-chain timestamp.
+
+```typescript
+// Advance by 1 microsecond (default)
+harness.newBlock();
+
+// Advance by 10 seconds
+harness.newBlock({ offsetUsecs: 10_000_000 });
+
+// Set an absolute timestamp
+harness.newBlock({ timestampUsecs: 1_800_000_000_000_000 });
+```
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `timestampUsecs` | No | Absolute block timestamp in microseconds |
+| `offsetUsecs` | No | Advance the current timestamp by this many microseconds |
+
+`timestampUsecs` and `offsetUsecs` are mutually exclusive. If neither is provided, the timestamp advances by 1 microsecond. Returns a `NewBlockResult` with `newTimestampUsecs`, `oldEpoch`, and `newEpoch`.
+
+**`advanceEpoch()`** — Advance to the next epoch. Automatically calculates the minimum timestamp needed to cross the epoch boundary and executes a new block metadata transaction at that timestamp, triggering reconfiguration. Returns a `NewBlockResult`.
 
 ### Harness Lifecycle Management
 

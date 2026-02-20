@@ -8,6 +8,8 @@ import {
   existsSync,
   mkdirSync,
   readdirSync,
+  renameSync,
+  cpSync,
 } from "fs";
 import path, { join } from "path";
 import { tmpdir } from "os";
@@ -171,6 +173,11 @@ interface TransactionOptions {
   gasUnitPrice?: number;
   maxGas?: number;
   expirationSecs?: number;
+  /**
+   * If set, enables gas profiling and moves the gas report to the specified directory path.
+   * Only available in simulation mode.
+   */
+  profileGas?: string;
 }
 
 interface FunctionCallOptions {
@@ -182,6 +189,17 @@ interface PackageOptions {
   namedAddresses?: { [key: string]: string };
   includedArtifacts?: string;
   chunked?: boolean;
+}
+
+interface NewBlockOptions {
+  timestampUsecs?: number | bigint | string;
+  offsetUsecs?: number | bigint | string;
+}
+
+interface NewBlockResult {
+  newTimestampUsecs: bigint;
+  oldEpoch: bigint;
+  newEpoch: bigint;
 }
 
 interface MoveRunOptions extends TransactionOptions, FunctionCallOptions {
@@ -639,6 +657,100 @@ class Harness {
   }
 
   /**
+   * Executes a new block metadata transaction in the simulation session.
+   *
+   * This runs a real block metadata transaction through the VM. The block prologue
+   * updates the on-chain timestamp and may trigger an epoch change if enough time
+   * has passed since the last reconfiguration.
+   *
+   * Options `timestampUsecs` and `offsetUsecs` are mutually exclusive:
+   * - `timestampUsecs`: sets an absolute block timestamp in microseconds
+   * - `offsetUsecs`: advances the current timestamp by this many microseconds
+   * - If neither is provided, the timestamp advances by 1 microsecond
+   *
+   * Only available in simulation mode.
+   *
+   * @returns An object with the new timestamp and epoch information.
+   * @throws Error if called in live mode, if both timestamp options are set, or if the CLI command fails.
+   */
+  newBlock(options?: NewBlockOptions): NewBlockResult {
+    if (this.isLiveMode) {
+      throw new Error("newBlock is only available in simulation mode");
+    }
+
+    if (
+      options?.timestampUsecs !== undefined &&
+      options?.offsetUsecs !== undefined
+    ) {
+      throw new Error("timestampUsecs and offsetUsecs are mutually exclusive");
+    }
+
+    // prettier-ignore
+    const args = [
+      "move", "sim", "new-block",
+      "--session", this.getSessionPath(),
+    ];
+
+    if (options?.timestampUsecs !== undefined) {
+      args.push("--timestamp-usecs", options.timestampUsecs.toString());
+    }
+    if (options?.offsetUsecs !== undefined) {
+      args.push("--offset-usecs", options.offsetUsecs.toString());
+    }
+
+    const res = this.runAptos(args);
+
+    if (!res || !res.Result) {
+      throw new Error(
+        `aptos move sim new-block failed: ${JSON.stringify(res)}`,
+      );
+    }
+
+    return {
+      newTimestampUsecs: BigInt(res.Result.new_timestamp_usecs),
+      oldEpoch: BigInt(res.Result.old_epoch),
+      newEpoch: BigInt(res.Result.new_epoch),
+    };
+  }
+
+  /**
+   * Advances to the next epoch in the simulation session.
+   *
+   * This calculates the minimum timestamp needed to cross the epoch boundary
+   * and executes a new block at that timestamp, triggering a reconfiguration.
+   *
+   * Only available in simulation mode.
+   *
+   * @returns An object with the new timestamp and epoch information.
+   * @throws Error if called in live mode or if the CLI command fails.
+   */
+  advanceEpoch(): NewBlockResult {
+    if (this.isLiveMode) {
+      throw new Error("advanceEpoch is only available in simulation mode");
+    }
+
+    // prettier-ignore
+    const args = [
+      "move", "sim", "advance-epoch",
+      "--session", this.getSessionPath(),
+    ];
+
+    const res = this.runAptos(args);
+
+    if (!res || !res.Result) {
+      throw new Error(
+        `aptos move sim advance-epoch failed: ${JSON.stringify(res)}`,
+      );
+    }
+
+    return {
+      newTimestampUsecs: BigInt(res.Result.new_timestamp_usecs),
+      oldEpoch: BigInt(res.Result.old_epoch),
+      newEpoch: BigInt(res.Result.new_epoch),
+    };
+  }
+
+  /**
    * Runs a Move function identified by its fully qualified function ID with the specified
    * arguments and options.
    *
@@ -665,9 +777,13 @@ class Harness {
     if (options.extraFlags) {
       args.push(...options.extraFlags);
     }
+    if (options.profileGas) {
+      args.push("--profile-gas");
+    }
 
     const res = this.runAptos(args);
 
+    this.maybeMoveGasReport(options.profileGas);
     this.maybeIncludeEvents(res, options.includeEvents);
 
     return res;
@@ -728,9 +844,13 @@ class Harness {
     if (options.runExtraFlags) {
       runArgs.push(...options.runExtraFlags);
     }
+    if (options.profileGas) {
+      runArgs.push("--profile-gas");
+    }
 
     const res = this.runAptos(runArgs);
 
+    this.maybeMoveGasReport(options.profileGas);
     this.maybeIncludeEvents(res, options.includeEvents);
 
     return res;
@@ -764,9 +884,13 @@ class Harness {
     if (options.extraFlags) {
       args.push(...options.extraFlags);
     }
+    if (options.profileGas) {
+      args.push("--profile-gas");
+    }
 
     const res = this.runAptos(args);
 
+    this.maybeMoveGasReport(options.profileGas);
     this.maybeIncludeEvents(res, options.includeEvents);
 
     return res;
@@ -805,6 +929,9 @@ class Harness {
     if (options.extraFlags) {
       args.push(...options.extraFlags);
     }
+    if (options.profileGas) {
+      args.push("--profile-gas");
+    }
 
     const res = this.runAptos(args);
 
@@ -816,6 +943,7 @@ class Harness {
       }
     }
 
+    this.maybeMoveGasReport(options.profileGas);
     this.maybeIncludeEvents(res, options.includeEvents);
 
     return res;
@@ -856,9 +984,13 @@ class Harness {
     if (options.extraFlags) {
       args.push(...options.extraFlags);
     }
+    if (options.profileGas) {
+      args.push("--profile-gas");
+    }
 
     const res = this.runAptos(args);
 
+    this.maybeMoveGasReport(options.profileGas);
     this.maybeIncludeEvents(res, options.includeEvents);
 
     return res;
@@ -1115,6 +1247,66 @@ class Harness {
   }
 
   /**
+   * Returns the absolute path to the last operation's directory in the session,
+   * or undefined if it cannot be determined.
+   */
+  private getLastOperationDir(): string | undefined {
+    const sessionPath = this.getSessionPath();
+    const configPath = join(sessionPath, "config.json");
+    if (!existsSync(configPath)) {
+      return undefined;
+    }
+
+    const config = JSON.parse(readFileSync(configPath, "utf8"));
+    const lastIndex = config.ops - 1;
+
+    const files = readdirSync(sessionPath) as string[];
+    const prefix = `[${lastIndex}]`;
+    const dir = files.find((f: string) => f.startsWith(prefix));
+
+    return dir ? join(sessionPath, dir) : undefined;
+  }
+
+  /**
+   * If profileGas is set, finds the gas report in the latest operation directory
+   * and moves it to the user-specified path.
+   */
+  private maybeMoveGasReport(profileGas?: string): void {
+    if (!profileGas) return;
+
+    if (this.isLiveMode) {
+      throw new Error("profileGas is only available in simulation mode");
+    }
+
+    const opDir = this.getLastOperationDir();
+    if (!opDir) {
+      throw new Error(
+        "Cannot find gas report: unable to locate last operation directory",
+      );
+    }
+
+    const gasReportSrc = join(opDir, "gas-report");
+    if (!existsSync(gasReportSrc)) {
+      throw new Error(
+        `Cannot find gas report at ${gasReportSrc}. Was --profile-gas passed to the CLI?`,
+      );
+    }
+
+    mkdirSync(profileGas, { recursive: true });
+
+    try {
+      renameSync(gasReportSrc, profileGas);
+    } catch (e: any) {
+      if (e.code === "EXDEV") {
+        cpSync(gasReportSrc, profileGas, { recursive: true });
+        rmSync(gasReportSrc, { recursive: true, force: true });
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  /**
    * If includeEvents is true and the transaction succeeded, fetches and attaches events to the result.
    */
   private maybeIncludeEvents(res: any, includeEvents?: boolean): void {
@@ -1151,33 +1343,13 @@ class Harness {
       const txData = response.json() as { events?: any[] };
       return txData.events;
     } else {
-      // Simulation mode: read from events.json in the latest transaction directory
-      const sessionPath = this.getSessionPath();
-
-      if (!existsSync(sessionPath)) {
-        return undefined;
-      }
-
       try {
-        // Read config.json to get the transaction count
-        const configPath = join(sessionPath, "config.json");
-        if (!existsSync(configPath)) {
+        const opDir = this.getLastOperationDir();
+        if (!opDir) {
           return undefined;
         }
 
-        const config = JSON.parse(readFileSync(configPath, "utf8"));
-        const lastTxIndex = config.ops - 1;
-
-        // Find the directory starting with "[{lastTxIndex}]"
-        const files = readdirSync(sessionPath) as string[];
-        const prefix = `[${lastTxIndex}]`;
-        const txDir = files.find((f: string) => f.startsWith(prefix));
-
-        if (!txDir) {
-          return undefined;
-        }
-
-        const eventsPath = join(sessionPath, txDir, "events.json");
+        const eventsPath = join(opDir, "events.json");
         if (!existsSync(eventsPath)) {
           return undefined;
         }
@@ -1196,7 +1368,6 @@ class Harness {
                 data: event.V2.event_data,
               };
             }
-            // Return as-is if already in expected format
             return event;
           });
         }
@@ -1215,6 +1386,8 @@ export {
   type TransactionOptions,
   type FunctionCallOptions,
   type PackageOptions,
+  type NewBlockOptions,
+  type NewBlockResult,
   type MoveRunOptions,
   type MoveRunScriptOptions,
   type ViewOptions,
