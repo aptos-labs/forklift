@@ -75,6 +75,9 @@ npm test -- deploy_object
 2. Add a test in `packages/testsuite/src/tests/`
 3. Update `packages/live-tests/` if the feature needs live network testing
 4. Update `README.md` API Reference section
+When wrapping a new CLI command, always check its actual JSON output format first (`aptos move sim <command> --help`, then run it manually). Some commands return `{"Result": "Success"}`, others return structured objects (e.g., `new-block` returns `{new_timestamp_usecs, old_epoch, new_epoch}`). Don't assume the format.
+
+Prefer adding shared options to base interfaces (`TransactionOptions`, `FunctionCallOptions`, `PackageOptions`) rather than duplicating across each method-specific interface.
 
 ### Adding a Test
 
@@ -132,8 +135,21 @@ The harness uses interface inheritance and helper functions to reduce duplicatio
 - **Base interfaces** (`TransactionOptions`, `FunctionCallOptions`, `PackageOptions`) capture common fields. Method-specific interfaces extend these.
 - **Helper functions** (`addTransactionOptions`, `addNamedAddresses`, etc.) build CLI arguments from options objects.
 - **`runAptos(args)`** private method wraps all CLI calls with the working directory.
+- **`getLastOperationDir()`** private method finds the latest operation directory in the session (used by event fetching and gas report extraction).
 
 When adding new harness methods, look for existing interfaces and helpers to reuse. Check the top of `harness.ts` for current interfaces and helpers.
+
+### Session Directory Structure
+
+The simulation session (at `getSessionPath()`) stores each operation in a numbered directory like `[0] fund (fungible)`, `[1] execute 0x1::module::func`. A `config.json` file at the session root tracks the total operation count in its `ops` field. Subdirectories within each operation dir may include `events.json` and `gas-report/`.
+
+### Releasing a New Version
+
+1. Bump the version in `packages/forklift/package.json`
+2. Update `packages/forklift/CHANGELOG.md` with the new version and changes
+3. If the CLI version requirement changed, update it in all places: `README.md`, `packages/forklift/README.md`, `blog/blog-post-launch.md`, and `.github/actions/setup-aptos-cli/action.yml`
+4. Update lock files in all dependent packages
+5. Build and run the full test suite
 
 ## Code Conventions
 
@@ -159,7 +175,9 @@ When adding new harness methods, look for existing interfaces and helpers to reu
 
 3. **Build order** - Must build `packages/forklift` before running tests in other packages.
 
-4. **Move.toml placeholders** - Use `"_"` for addresses set during deployment:
+4. **Lock files across packages** - Changes to any `package.json` (version bumps, dependency changes, etc.) require updating the lock file in that package and in any packages that depend on it. Run `npm install --package-lock-only` in each affected package. For forklift specifically, `testsuite`, `example-tip-jar`, and `live-tests` all depend on it via `file:../forklift`.
+
+5. **Move.toml placeholders** - Use `"_"` for addresses set during deployment:
    ```toml
    [addresses]
    my_contract = "_"
