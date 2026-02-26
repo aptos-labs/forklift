@@ -406,10 +406,10 @@ class Harness {
       this.faucetUrl = null;
     }
 
-    this.init_cli_profile("default");
+    this.initCliProfile("default");
 
     if (!this.isLiveMode) {
-      this.init_session(options);
+      this.initSession(options);
       this.fundAccount("default", 10000000000 /* 100 APT */);
     }
 
@@ -496,7 +496,7 @@ class Harness {
    *
    * @throws Error if the initialization fails.
    */
-  init_cli_profile(profile_name: string, privateKey?: string): void {
+  initCliProfile(profile_name: string, privateKey?: string): void {
     const privKey = privateKey
       ? new Ed25519PrivateKey(
           PrivateKey.formatPrivateKey(privateKey, PrivateKeyVariants.Ed25519),
@@ -552,6 +552,13 @@ class Harness {
   }
 
   /**
+   * @deprecated Use `initCliProfile` instead.
+   */
+  init_cli_profile(profile_name: string, privateKey?: string): void {
+    return this.initCliProfile(profile_name, privateKey);
+  }
+
+  /**
    * Initialize the Aptos Transaction Simulation Session.
    *
    * Sets up a simulation environment for testing Aptos transactions. If both network and API key
@@ -560,7 +567,7 @@ class Harness {
    *
    * @throws Error if both network and apiKey are not provided together, or if the initialization fails
    */
-  private init_session(options: HarnessOptions): void {
+  private initSession(options: HarnessOptions): void {
     const args = ["move", "sim", "init", "--path", this.getSessionPath()];
 
     // Add network and API key if both are provided

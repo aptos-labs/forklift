@@ -53,7 +53,7 @@ const harness = isLive
   : Harness.createNetworkFork(config.network, credentials.apiKey ?? "");
 
 try {
-  harness.init_cli_profile(accountName, privateKey);
+  harness.initCliProfile(accountName, privateKey);
 
   const balance = getBalance(harness, config.codeAddress, jarAddress);
   console.log(`  Current balance: ${formatApt(balance)}`);

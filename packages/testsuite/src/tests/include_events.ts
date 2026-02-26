@@ -14,7 +14,7 @@ describe("includeEvents option", () => {
   const packageDir = path.resolve(__dirname, "../../move_packages/message");
 
   beforeAll(() => {
-    harness.init_cli_profile(sender);
+    harness.initCliProfile(sender);
     senderAddress = harness.getAccountAddress(sender);
     harness.fundAccount(sender, 500_000_000);
   });
@@ -78,7 +78,7 @@ describe("includeEvents option", () => {
 
   it("deployCodeObject should include events when requested", () => {
     const deployer = "code_deployer";
-    harness.init_cli_profile(deployer);
+    harness.initCliProfile(deployer);
     harness.fundAccount(deployer, 500_000_000);
 
     const res = harness.deployCodeObject({

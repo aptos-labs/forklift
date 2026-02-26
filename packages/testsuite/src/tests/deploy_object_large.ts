@@ -11,7 +11,7 @@ describe("code object (large)", () => {
   });
 
   it("fund sender account", () => {
-    harness.init_cli_profile(sender);
+    harness.initCliProfile(sender);
     harness.fundAccount(sender, 100000000);
   });
 

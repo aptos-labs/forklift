@@ -15,7 +15,7 @@ describe("poisoning", () => {
   });
 
   it("should throw when initializing cli profile after cleanup", () => {
-    expect(() => harness.init_cli_profile("test")).toThrow(EXPECTED_ERROR);
+    expect(() => harness.initCliProfile("test")).toThrow(EXPECTED_ERROR);
   });
 
   it("should throw when funding account after cleanup", () => {

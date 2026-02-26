@@ -19,7 +19,7 @@ const apiKey = process.env.APTOS_API_KEY;
 
   it("transfer to existing account", () => {
     const sender = "alice";
-    harness.init_cli_profile(sender);
+    harness.initCliProfile(sender);
     harness.fundAccount(sender, 100000000);
 
     const res = harness.runMoveFunction({

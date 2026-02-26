@@ -37,10 +37,10 @@ describe("TipJar", () => {
 
   beforeAll(() => {
     // Initialize profiles
-    harness.init_cli_profile(owner);
-    harness.init_cli_profile(donor1);
-    harness.init_cli_profile(donor2);
-    harness.init_cli_profile(newOwner);
+    harness.initCliProfile(owner);
+    harness.initCliProfile(donor1);
+    harness.initCliProfile(donor2);
+    harness.initCliProfile(newOwner);
 
     ownerAddress = harness.getAccountAddress(owner);
     donor1Address = harness.getAccountAddress(donor1);

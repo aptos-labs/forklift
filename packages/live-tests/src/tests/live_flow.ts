@@ -39,7 +39,7 @@ describe("Live Mode", () => {
 
     it("initialize CLI profile", () => {
       sender = "alice";
-      harness.init_cli_profile(sender);
+      harness.initCliProfile(sender);
       address = harness.getAccountAddress(sender);
     });
 
@@ -161,7 +161,7 @@ describe("Live Mode", () => {
 
     it("initialize profile for code object tests", () => {
       codeObjectSender = "bob";
-      harness.init_cli_profile(codeObjectSender);
+      harness.initCliProfile(codeObjectSender);
       harness.fundAccount(codeObjectSender, 100000000);
     });
 
@@ -227,7 +227,7 @@ describe("Live Mode", () => {
 
     it("initialize profile for large package tests", async () => {
       largePackageSender = "charlie";
-      harness.init_cli_profile(largePackageSender);
+      harness.initCliProfile(largePackageSender);
       harness.fundAccount(largePackageSender, 500000000);
       largePackageAddress = harness.getAccountAddress(largePackageSender);
       await new Promise((resolve) => setTimeout(resolve, 2000));
