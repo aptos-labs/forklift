@@ -765,6 +765,8 @@ class Harness {
    * @throws Error if running into non-execution failures.
    */
   runMoveFunction(options: MoveRunOptions): any {
+    this.validateProfileGas(options.profileGas);
+
     // prettier-ignore
     const args = [
       "move", "run",
@@ -804,6 +806,8 @@ class Harness {
    * @throws Error if running into non-execution failures (including compilation errors).
    */
   runMoveScript(options: MoveRunScriptOptions): any {
+    this.validateProfileGas(options.profileGas);
+
     const compileArgs = [
       "move",
       "compile",
@@ -871,6 +875,8 @@ class Harness {
    * @throws Error if running into non-execution failures.
    */
   publishPackage(options: PublishOptions): any {
+    this.validateProfileGas(options.profileGas);
+
     // prettier-ignore
     const args = [
       "move", "publish",
@@ -910,6 +916,8 @@ class Harness {
    * @throws Error if running into non-execution failures.
    */
   deployCodeObject(options: DeployCodeObjectOptions): any {
+    this.validateProfileGas(options.profileGas);
+
     // prettier-ignore
     const args = [
       "move", "deploy-object",
@@ -963,6 +971,8 @@ class Harness {
    * @throws Error if running into non-execution failures.
    */
   upgradeCodeObject(options: UpgradeCodeObjectOptions): any {
+    this.validateProfileGas(options.profileGas);
+
     // prettier-ignore
     const args = [
       "move", "upgrade-object",
@@ -1278,12 +1288,14 @@ class Harness {
    * If profileGas is set, finds the gas report in the latest operation directory
    * and moves it to the user-specified path.
    */
-  private maybeMoveGasReport(profileGas?: string): void {
-    if (!profileGas) return;
-
-    if (this.isLiveMode) {
+  private validateProfileGas(profileGas?: string): void {
+    if (profileGas && this.isLiveMode) {
       throw new Error("profileGas is only available in simulation mode");
     }
+  }
+
+  private maybeMoveGasReport(profileGas?: string): void {
+    if (!profileGas) return;
 
     const opDir = this.getLastOperationDir();
     if (!opDir) {
