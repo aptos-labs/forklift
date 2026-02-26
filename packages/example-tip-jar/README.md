@@ -108,8 +108,8 @@ describe("TipJar", () => {
 
   beforeAll(() => {
     // Create test accounts and give them some APT to work with
-    harness.init_cli_profile("owner");
-    harness.init_cli_profile("donor");
+    harness.initCliProfile("owner");
+    harness.initCliProfile("donor");
     harness.fundAccount("owner", 1_000_000_000);
     harness.fundAccount("donor", 1_000_000_000);
   });

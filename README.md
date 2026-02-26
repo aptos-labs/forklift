@@ -35,7 +35,7 @@ import { Harness } from "@aptos-labs/forklift";
 const harness = Harness.createLocal();
 
 // Set up an account
-harness.init_cli_profile("alice");
+harness.initCliProfile("alice");
 harness.fundAccount("alice", 100_000_000);
 
 // Deploy a contract
@@ -92,7 +92,7 @@ The key insight: **your code stays the same across all modes**. Write workflow f
 
 | Method | Description |
 |--------|-------------|
-| `init_cli_profile(name, privateKey?)` | Initialize an account profile. Generates a random key if not provided. Does not create anything on-chain yet. |
+| `initCliProfile(name, privateKey?)` | Initialize an account profile. Generates a random key if not provided. Does not create anything on-chain yet. |
 | `fundAccount(account, amount)` | Fund an account with APT (in octas). Only works in live mode if a valid faucet is provided. |
 | `getAccountAddress(profile)` | Get the address for a profile name. |
 

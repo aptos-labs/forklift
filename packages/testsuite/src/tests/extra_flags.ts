@@ -16,7 +16,7 @@ describe("Extra flags support", () => {
   const packageDir = path.resolve(__dirname, "../../move_packages/message");
 
   beforeAll(() => {
-    harness.init_cli_profile(sender);
+    harness.initCliProfile(sender);
     harness.fundAccount(sender, 100000000);
   });
 

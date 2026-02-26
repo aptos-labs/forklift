@@ -56,7 +56,7 @@ const harness = isLive
 
 try {
   // Register account with private key
-  harness.init_cli_profile(accountName, privateKey);
+  harness.initCliProfile(accountName, privateKey);
 
   if (isUpgrade) {
     upgradePackage(harness, accountName, config.codeAddress!);

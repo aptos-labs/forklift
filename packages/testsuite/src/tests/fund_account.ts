@@ -9,7 +9,7 @@ describe("fund account", () => {
 
   it("should fund account and check balance", () => {
     const profileName = "alice_fund";
-    harness.init_cli_profile(profileName);
+    harness.initCliProfile(profileName);
 
     const amount = 142857;
     harness.fundAccount(profileName, amount);
@@ -20,7 +20,7 @@ describe("fund account", () => {
 
   it("should accumulate balance when funded multiple times", () => {
     const profileName = "bob_fund";
-    harness.init_cli_profile(profileName);
+    harness.initCliProfile(profileName);
 
     harness.fundAccount(profileName, 100);
     expect(harness.getAPTBalanceFungibleStore(profileName)).toBe(BigInt(100));
@@ -31,7 +31,7 @@ describe("fund account", () => {
 
   it("should handle zero amount funding", () => {
     const profileName = "charlie_fund";
-    harness.init_cli_profile(profileName);
+    harness.initCliProfile(profileName);
     harness.fundAccount(profileName, 100);
 
     harness.fundAccount(profileName, 0);
@@ -40,7 +40,7 @@ describe("fund account", () => {
 
   it("should throw error when funding with negative amount", () => {
     const profileName = "negative_fund";
-    harness.init_cli_profile(profileName);
+    harness.initCliProfile(profileName);
 
     expect(() => {
       harness.fundAccount(profileName, -100);
@@ -49,7 +49,7 @@ describe("fund account", () => {
 
   it("should handle huge amount of funding (BigInt)", () => {
     const profileName = "whale";
-    harness.init_cli_profile(profileName);
+    harness.initCliProfile(profileName);
 
     // Max u64 is 18446744073709551615
     // Let's use something larger than MAX_SAFE_INTEGER (9007199254740991) but within u64
@@ -61,7 +61,7 @@ describe("fund account", () => {
 
   it("should throw error when funding with amount > u64::MAX", () => {
     const profileName = "overflow_fund";
-    harness.init_cli_profile(profileName);
+    harness.initCliProfile(profileName);
 
     // Max u64 is 18446744073709551615
     const overflowAmount = BigInt("18446744073709551616"); // u64::MAX + 1
@@ -81,7 +81,7 @@ describe("fund account", () => {
 
   it("should succeed when funding with u64::MAX", () => {
     const profileName = "max_u64_test";
-    harness.init_cli_profile(profileName);
+    harness.initCliProfile(profileName);
 
     const maxU64 = BigInt("18446744073709551615");
     harness.fundAccount(profileName, maxU64);
@@ -90,7 +90,7 @@ describe("fund account", () => {
 
   it("should fail when cumulative funding exceeds u64::MAX", () => {
     const profileName = "cumulative_overflow_test";
-    harness.init_cli_profile(profileName);
+    harness.initCliProfile(profileName);
 
     const almostMax = BigInt("18446744073709551615") - BigInt(10);
     harness.fundAccount(profileName, almostMax);

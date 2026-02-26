@@ -10,7 +10,7 @@ describe("publish package", () => {
   });
 
   it("should publish message package and verify registry", () => {
-    harness.init_cli_profile(alice);
+    harness.initCliProfile(alice);
     harness.fundAccount(alice, 100000000);
 
     const packageDir = path.resolve(__dirname, "../../move_packages/message");
@@ -87,7 +87,7 @@ describe("publish package", () => {
 
   it("should publish with included artifacts set to none", () => {
     const artifactProfile = "artifact_tester";
-    harness.init_cli_profile(artifactProfile);
+    harness.initCliProfile(artifactProfile);
     harness.fundAccount(artifactProfile, 100000000);
 
     const packageDir = path.resolve(__dirname, "../../move_packages/message");

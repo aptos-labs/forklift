@@ -11,7 +11,7 @@ describe("code object", () => {
   });
 
   it("should publish message package and verify registry", () => {
-    harness.init_cli_profile(sender);
+    harness.initCliProfile(sender);
     harness.fundAccount(sender, 100000000);
 
     const packageDir = path.resolve(__dirname, "../../move_packages/message");

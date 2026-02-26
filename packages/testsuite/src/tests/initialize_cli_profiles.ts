@@ -16,7 +16,7 @@ describe("initialize CLI profiles", () => {
   it("initialize a profile with a random private key", () => {
     const profileName = "alice";
 
-    harness.init_cli_profile(profileName);
+    harness.initCliProfile(profileName);
 
     const address = harness.getAccountAddress(profileName);
     expect(address).toMatch(/^0x[a-fA-F0-9]{64}$/);
@@ -28,7 +28,7 @@ describe("initialize CLI profiles", () => {
     const account = Account.fromPrivateKey({ privateKey: pk });
     const pkStr = pk.toHexString();
 
-    harness.init_cli_profile(profileName, pkStr);
+    harness.initCliProfile(profileName, pkStr);
 
     const address = harness.getAccountAddress(profileName);
     const expectedAddress = account.accountAddress.toString();
@@ -40,16 +40,16 @@ describe("initialize CLI profiles", () => {
     const invalidPk = "invalid_key";
 
     expect(() => {
-      harness.init_cli_profile(profileName, invalidPk);
+      harness.initCliProfile(profileName, invalidPk);
     }).toThrow();
   });
 
   it("should throw error if profile with same name already exists", () => {
     const profileName = "duplicate";
-    harness.init_cli_profile(profileName);
+    harness.initCliProfile(profileName);
 
     expect(() => {
-      harness.init_cli_profile(profileName);
+      harness.initCliProfile(profileName);
     }).toThrow(/already exists/);
   });
 });

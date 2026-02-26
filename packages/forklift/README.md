@@ -26,7 +26,7 @@ import { Harness } from "@aptos-labs/forklift";
 
 const harness = Harness.createLocal();
 
-harness.init_cli_profile("alice");
+harness.initCliProfile("alice");
 harness.fundAccount("alice", 100_000_000);
 
 const result = harness.deployCodeObject({
