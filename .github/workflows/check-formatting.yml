@@ -26,3 +26,15 @@ jobs:
         run: |
           npm ci
           npm run format:check
+
+      - name: Check example-tip-jar formatting
+        working-directory: packages/example-tip-jar
+        run: |
+          npm ci
+          npm run format:check
+
+      - name: Check live-tests formatting
+        working-directory: packages/live-tests
+        run: |
+          npm ci
+          npm run format:check
