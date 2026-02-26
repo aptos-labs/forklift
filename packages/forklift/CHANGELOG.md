@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1
+
+- **`initCliProfile`** — Renamed from `init_cli_profile` to follow camelCase convention. The old name still works but is deprecated.
+- `profileGas` now validates early and throws a clear error before running the CLI command if used in live mode.
+
 ## 1.1.0
 
 ### New Features
