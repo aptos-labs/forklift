@@ -15,12 +15,13 @@ jobs:
         with:
           node-version: 22
 
-      - name: Check all formatting
+      - name: Install dependencies
         run: |
-          for pkg in forklift testsuite example-tip-jar live-tests; do
-            echo "Checking packages/$pkg..."
-            cd packages/$pkg
-            npm ci
-            npm run format:check
-            cd ../..
+          for pkg in packages/*/; do
+            if [ -f "$pkg/package.json" ]; then
+              (cd "$pkg" && npm ci)
+            fi
           done
+
+      - name: Check all formatting
+        run: ./scripts/check-formatting.sh
