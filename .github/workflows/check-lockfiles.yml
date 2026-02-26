@@ -15,42 +15,16 @@ jobs:
         with:
           node-version: 22
 
-      - name: Check forklift lockfile
-        working-directory: packages/forklift
+      - name: Check all lockfiles
         run: |
-          npm install --package-lock-only --ignore-scripts
-          if ! git diff --exit-code package-lock.json; then
-            echo "Error: packages/forklift/package-lock.json is not up to date."
-            echo "Please run 'npm install' in packages/forklift and commit the changes."
-            exit 1
-          fi
-
-      - name: Check testsuite lockfile
-        working-directory: packages/testsuite
-        run: |
-          npm install --package-lock-only --ignore-scripts
-          if ! git diff --exit-code package-lock.json; then
-            echo "Error: packages/testsuite/package-lock.json is not up to date."
-            echo "Please run 'npm install' in packages/testsuite and commit the changes."
-            exit 1
-          fi
-
-      - name: Check example-tip-jar lockfile
-        working-directory: packages/example-tip-jar
-        run: |
-          npm install --package-lock-only --ignore-scripts
-          if ! git diff --exit-code package-lock.json; then
-            echo "Error: packages/example-tip-jar/package-lock.json is not up to date."
-            echo "Please run 'npm install' in packages/example-tip-jar and commit the changes."
-            exit 1
-          fi
-
-      - name: Check live-tests lockfile
-        working-directory: packages/live-tests
-        run: |
-          npm install --package-lock-only --ignore-scripts
-          if ! git diff --exit-code package-lock.json; then
-            echo "Error: packages/live-tests/package-lock.json is not up to date."
-            echo "Please run 'npm install' in packages/live-tests and commit the changes."
-            exit 1
-          fi
+          for pkg in forklift testsuite example-tip-jar live-tests; do
+            echo "Checking packages/$pkg..."
+            cd packages/$pkg
+            npm install --package-lock-only --ignore-scripts
+            if ! git diff --exit-code package-lock.json; then
+              echo "Error: packages/$pkg/package-lock.json is not up to date."
+              echo "Please run 'npm install' in packages/$pkg and commit the changes."
+              exit 1
+            fi
+            cd ../..
+          done

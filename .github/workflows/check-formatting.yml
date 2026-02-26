@@ -15,26 +15,12 @@ jobs:
         with:
           node-version: 22
 
-      - name: Check forklift formatting
-        working-directory: packages/forklift
+      - name: Check all formatting
         run: |
-          npm ci
-          npm run format:check
-
-      - name: Check testsuite formatting
-        working-directory: packages/testsuite
-        run: |
-          npm ci
-          npm run format:check
-
-      - name: Check example-tip-jar formatting
-        working-directory: packages/example-tip-jar
-        run: |
-          npm ci
-          npm run format:check
-
-      - name: Check live-tests formatting
-        working-directory: packages/live-tests
-        run: |
-          npm ci
-          npm run format:check
+          for pkg in forklift testsuite example-tip-jar live-tests; do
+            echo "Checking packages/$pkg..."
+            cd packages/$pkg
+            npm ci
+            npm run format:check
+            cd ../..
+          done
