@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.0
+
+- **Aptos CLI version validation** — The Harness now checks for a compatible Aptos CLI at construction time. Missing CLI gives `"Aptos CLI not found…"` instead of a cryptic `ENOENT`. Outdated CLI tells you the required version and where to update.
+- Exported `MIN_CLI_VERSION` and `compareVersions` for tooling use.
+
 ## 1.1.1
 
 - **`initCliProfile`** — Renamed from `init_cli_profile` to follow camelCase convention. The old name still works but is deprecated.

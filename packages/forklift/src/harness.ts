@@ -25,6 +25,7 @@ import assert from "assert";
 import fetch from "sync-fetch";
 
 const APTOS_BINARY = "aptos";
+export const MIN_CLI_VERSION = "8.1.0";
 
 // TODOs
 // - Test-only APIs
@@ -40,6 +41,50 @@ function stripNodeModulesBin(pathEnv: string) {
 }
 
 const cleanPath = stripNodeModulesBin(process.env.PATH || "");
+
+/**
+ * Compares two version strings in "X.Y.Z" format.
+ * Returns -1 if a < b, 0 if equal, 1 if a > b.
+ */
+export function compareVersions(a: string, b: string): number {
+  const [aMajor, aMinor, aPatch] = a.split(".").map(Number);
+  const [bMajor, bMinor, bPatch] = b.split(".").map(Number);
+
+  if (aMajor !== bMajor) return aMajor < bMajor ? -1 : 1;
+  if (aMinor !== bMinor) return aMinor < bMinor ? -1 : 1;
+  if (aPatch !== bPatch) return aPatch < bPatch ? -1 : 1;
+  return 0;
+}
+
+function validateCliVersion(): void {
+  const result = spawnSync(APTOS_BINARY, ["--version"], {
+    shell: false,
+    encoding: "utf8",
+    env: { PATH: cleanPath },
+  });
+
+  if (result.error) {
+    throw new Error(
+      "Aptos CLI not found. Install it from https://aptos.dev/tools/aptos-cli/",
+    );
+  }
+
+  const output = (result.stdout || "").trim();
+  const match = output.match(/aptos (\d+)\.(\d+)\.(\d+)/);
+  if (!match) {
+    throw new Error(
+      `Unable to parse Aptos CLI version from output: "${output}"`,
+    );
+  }
+
+  const found = `${match[1]}.${match[2]}.${match[3]}`;
+
+  if (compareVersions(found, MIN_CLI_VERSION) < 0) {
+    throw new Error(
+      `Aptos CLI v${MIN_CLI_VERSION} or later is required (found v${found}). Update: https://aptos.dev/tools/aptos-cli/`,
+    );
+  }
+}
 
 /**
  * Computes a derived object address using SHA3-256.
@@ -370,6 +415,8 @@ class Harness {
   }
 
   private constructor(options: HarnessOptions) {
+    validateCliVersion();
+
     // Create a temporary directory with a unique name
     this.workingDir = mkdtempSync(join(tmpdir(), "forklift-"));
     this.poisoned = false;
