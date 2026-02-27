@@ -1,7 +1,6 @@
 # Forklift
 
 [![Tests](https://github.com/aptos-labs/forklift/actions/workflows/run-tests.yml/badge.svg)](https://github.com/aptos-labs/forklift/actions/workflows/run-tests.yml)
-[![Live Tests](https://github.com/aptos-labs/forklift/actions/workflows/run-live-tests.yml/badge.svg)](https://github.com/aptos-labs/forklift/actions/workflows/run-live-tests.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 Forklift is a TypeScript framework for developing, testing, and scripting Aptos Move smart contracts. It provides a unified interface — the `Harness` class — that works across local simulation, network forking, and live network execution.

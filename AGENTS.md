@@ -162,10 +162,10 @@ The simulation session (at `getSessionPath()`) stores each operation in a number
 
 | Workflow | Purpose |
 |----------|---------|
-| `run-tests.yml` | Runs testsuite on PRs |
-| `run-live-tests.yml` | Runs live-tests (requires local node) |
+| `run-tests.yml` | Runs all test suites on PRs (testsuite, example-tip-jar, live-tests) via matrix strategy |
 | `check-formatting.yml` | Verifies code formatting |
 | `check-lockfiles.yml` | Ensures lockfiles are up to date |
+| `publish-npm.yml` | Publishes to npm (manual trigger, admin only) |
 
 ## Common Pitfalls
 
