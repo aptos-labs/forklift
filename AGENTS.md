@@ -147,7 +147,7 @@ The simulation session (at `getSessionPath()`) stores each operation in a number
 
 1. Bump the version in `packages/forklift/package.json`
 2. Update `packages/forklift/CHANGELOG.md` with the new version and changes
-3. If the CLI version requirement changed, update it in all places: `README.md`, `packages/forklift/README.md`, `blog/blog-post-launch.md`, and `.github/actions/setup-aptos-cli/action.yml`
+3. If the CLI version requirement changed, update it in all places: `packages/forklift/src/harness.ts` (`MIN_CLI_VERSION`), `README.md`, `packages/forklift/README.md`, `blog/blog-post-launch.md`, and `.github/actions/setup-aptos-cli/action.yml`
 4. Update lock files in all dependent packages
 5. Build and run the full test suite
 
