@@ -1,4 +1,4 @@
-name: Forklift Tests
+name: Tests
 
 on:
   pull_request:
@@ -10,8 +10,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  run-forklift-tests:
+  test:
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Forklift
+            package: testsuite
+          - name: TipJar
+            package: example-tip-jar
+          - name: Live
+            package: live-tests
+
+    name: ${{ matrix.name }} Tests
 
     steps:
     - uses: actions/checkout@v4
@@ -32,8 +45,8 @@ jobs:
         npm ci
         npm run build
 
-    - name: Run Forklift Tests
-      working-directory: packages/testsuite
+    - name: Run Tests
+      working-directory: packages/${{ matrix.package }}
       env:
         APTOS_API_KEY: ${{ secrets.APTOS_API_KEY }}
       run: |
