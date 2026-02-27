@@ -8,11 +8,24 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Install Aptos CLI
+    - name: Cache Aptos CLI
+      id: cache-aptos
+      uses: actions/cache@v4
+      with:
+        path: aptos-cli
+        key: aptos-cli-${{ inputs.version }}-Ubuntu-x86_64
+
+    - name: Download Aptos CLI
+      if: steps.cache-aptos.outputs.cache-hit != 'true'
       shell: bash
       run: |
+        mkdir -p aptos-cli
         wget -q https://github.com/aptos-labs/aptos-core/releases/download/aptos-cli-v${{ inputs.version }}/aptos-cli-${{ inputs.version }}-Ubuntu-22.04-x86_64.zip
-        unzip -q aptos-cli-${{ inputs.version }}-Ubuntu-22.04-x86_64.zip
-        chmod +x aptos
-        echo "$(pwd)" >> $GITHUB_PATH
-        ./aptos --version
+        unzip -q aptos-cli-${{ inputs.version }}-Ubuntu-22.04-x86_64.zip -d aptos-cli
+
+    - name: Add Aptos CLI to PATH
+      shell: bash
+      run: |
+        chmod +x aptos-cli/aptos
+        echo "$(pwd)/aptos-cli" >> $GITHUB_PATH
+        aptos-cli/aptos --version
