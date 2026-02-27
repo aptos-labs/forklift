@@ -14,7 +14,7 @@
     "prettier": "^3.8.1",
     "ts-jest": "^29.1.2",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.9.3"
   },
   "dependencies": {
     "@aptos-labs/ts-sdk": "^5.1.6"
