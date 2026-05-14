@@ -3,6 +3,9 @@ name: Publish to npm
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -12,15 +15,17 @@ jobs:
       id-token: write
     steps:
       - name: Check admin permission
-        uses: actions-cool/check-user-permission@v2
+        uses: actions-cool/check-user-permission@c21884f3dda18dafc2f8b402fe807ccc9ec1aa5e # v2
         with:
           require: admin
           username: ${{ github.triggering_actor }}
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
 
       - name: Use Node.js 24
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           registry-url: "https://registry.npmjs.org"
