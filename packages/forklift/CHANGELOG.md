@@ -1,8 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Default CLI execution now targets `movement`; set `FORKLIFT_CLI_BINARY` to use a specific Movement CLI build.
+- Local and forked simulations validate transaction simulation session support without blocking live mode on older Movement CLI versions.
+- Known network names resolve to Movement endpoints for live and forked sessions: `mainnet`, `testnet`, and `devnet`.
+
 ## 1.2.0
 
-- **Aptos CLI version validation** — The Harness now checks for a compatible Aptos CLI at construction time. Missing CLI gives `"Aptos CLI not found…"` instead of a cryptic `ENOENT`. Outdated CLI tells you the required version and where to update.
+- **CLI version validation** — The Harness now checks for a compatible CLI at construction time. Missing CLI gives a clear error instead of a cryptic `ENOENT`. Outdated CLI tells you the required version.
 - Exported `MIN_CLI_VERSION` and `compareVersions` for tooling use.
 
 ## 1.1.1
@@ -20,7 +26,7 @@
 
 ### Requirements
 
-- Aptos CLI v8.1.0 or later (previously v7.14.2).
+- CLI v8.1.0 or later (previously v7.14.2).
 
 ## 1.0.1
 

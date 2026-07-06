@@ -1,14 +1,14 @@
 # Forklift
 
-[![Tests](https://github.com/aptos-labs/forklift/actions/workflows/run-tests.yml/badge.svg)](https://github.com/aptos-labs/forklift/actions/workflows/run-tests.yml)
+[![Tests](https://github.com/MoveIndustries/forklift/actions/workflows/run-tests.yml/badge.svg)](https://github.com/MoveIndustries/forklift/actions/workflows/run-tests.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-Forklift is a TypeScript framework for developing, testing, and scripting Aptos Move smart contracts. It provides a unified interface — the `Harness` class — that works across local simulation, network forking, and live network execution.
+Forklift is a TypeScript framework for developing, testing, and scripting Move smart contracts on Movement. It provides a unified interface — the `Harness` class — that works across local simulation, Movement network forking, and live Movement network execution.
 
 ## Features
 
 - **Local Simulation**: Develop and test without any network. Runs entirely in memory with instant execution. Includes test-only APIs like instant account funding.
-- **Network Forking**: Test against real Mainnet/Testnet/Devnet state without spending gas or affecting the network.
+- **Network Forking**: Test against real Movement Mainnet/Testnet/Devnet state without spending gas or affecting the network.
 - **Live Scripting**: Deploy contracts and execute transactions on real networks using the same code you tested locally.
 - **TypeScript Native**: Write tests and scripts in standard TypeScript with full Node.js capabilities.
 - **Easy Setup**: No need to manually spawn or manage a local validator node. Forklift handles the simulation lifecycle automatically.
@@ -17,7 +17,9 @@ Forklift is a TypeScript framework for developing, testing, and scripting Aptos 
 ## Prerequisites
 
 - **Node.js** v18 or later
-- **Aptos CLI** v8.1.0 or later ([installation guide](https://aptos.dev/tools/aptos-cli/)) — validated at runtime with a clear error message if missing or outdated
+- **Movement CLI**. Local simulation and network forking require v8.1.0 or later with transaction simulation session support; live mode only requires a CLI that supports the live command being executed.
+
+Forklift invokes `movement` by default. Set `FORKLIFT_CLI_BINARY=/path/to/movement` if the binary is not on `PATH`, or when testing with a specific CLI build.
 
 ## Installation
 
@@ -57,7 +59,7 @@ harness.cleanup();
 
 For a complete tutorial, see the [TipJar example](./packages/example-tip-jar/).
 
-> **Note:** Forklift uses the same formats as the Aptos CLI for function IDs (`0x1::module::function`), addresses, and typed arguments (`u64:100`, `address:0x1`, `bool:true`). If you're familiar with the CLI, you already know the syntax.
+> **Note:** Forklift uses the same formats as the Movement CLI for function IDs (`0x1::module::function`), addresses, and typed arguments (`u64:100`, `address:0x1`, `bool:true`). If you're familiar with the CLI, you already know the syntax.
 
 ## The Harness Class
 
@@ -71,7 +73,7 @@ All interactions with Forklift go through the `Harness` class. Create one using 
 
 **Local simulation** is your starting point. It runs entirely in memory with no network dependencies — perfect for rapid iteration during development and for CI pipelines.
 
-**Network forking** is one of Forklift's most powerful features. It fetches real chain state (accounts, resources, deployed contracts) and lets you simulate against it locally. This is useful for testing interactions with existing protocols or verifying your scripts before executing them for real. The `apiKey` is required to avoid rate limiting when fetching state from the network — [get one for free](https://aptos.dev/build/guides/build-e2e-dapp#setup-api-key).
+**Network forking** is one of Forklift's most powerful features. It fetches real Movement chain state (accounts, resources, deployed contracts) and lets you simulate against it locally. This is useful for testing interactions with existing protocols or verifying your scripts before executing them for real. Known network names resolve to Movement endpoints: `mainnet` -> `https://mainnet.movementnetwork.xyz`, `testnet` -> `https://testnet.movementnetwork.xyz`, and `devnet` -> `https://devnet.movementnetwork.xyz`.
 
 **Live mode** executes real transactions on the network. Use this when you're ready to deploy or interact with contracts for real — but remember, this costs gas and changes are permanent.
 
@@ -267,7 +269,7 @@ harness.newBlock({ timestampUsecs: 1_800_000_000_000_000 });
 
 - **[TipJar](./packages/example-tip-jar/)** — Full tutorial covering the develop → test → deploy → interact workflow
 - **[Testsuite](./packages/testsuite/)** — Internal tests demonstrating various Forklift features
-- **[Live Tests](./packages/live-tests/)** — Examples using live mode against a real node. Note: you must spawn and manage your own local node (via the Aptos CLI or SDK) to run these. Prefer local simulation mode when possible — it's simpler to set up, more flexible and provides better isolation.
+- **[Live Tests](./packages/live-tests/)** — Examples using live mode against a real node. Note: you must spawn and manage your own local node (via the Movement CLI or SDK) to run these. Prefer local simulation mode when possible — it's simpler to set up, more flexible and provides better isolation.
 
 ## Forklift vs. Aptos TS SDK
 

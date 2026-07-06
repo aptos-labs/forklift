@@ -28,12 +28,12 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/aptos-labs/forklift.git",
+    "url": "git+https://github.com/MoveIndustries/forklift.git",
     "directory": "packages/forklift"
   },
-  "homepage": "https://github.com/aptos-labs/forklift#readme",
+  "homepage": "https://github.com/MoveIndustries/forklift#readme",
   "bugs": {
-    "url": "https://github.com/aptos-labs/forklift/issues"
+    "url": "https://github.com/MoveIndustries/forklift/issues"
   },
   "engines": {
     "node": ">=18"

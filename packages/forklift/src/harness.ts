@@ -24,8 +24,49 @@ import { parse as parseToml } from "smol-toml";
 import assert from "assert";
 import fetch from "sync-fetch";
 
-const APTOS_BINARY = "aptos";
+const DEFAULT_CLI_BINARY = "movement";
 export const MIN_CLI_VERSION = "8.1.0";
+
+const MOVEMENT_NETWORKS: Record<
+  string,
+  { network: string; restUrl: string; faucetUrl: string | null }
+> = {
+  mainnet: {
+    network: "Mainnet",
+    restUrl: "https://mainnet.movementnetwork.xyz",
+    faucetUrl: null,
+  },
+  "movement-mainnet": {
+    network: "Mainnet",
+    restUrl: "https://mainnet.movementnetwork.xyz",
+    faucetUrl: null,
+  },
+  testnet: {
+    network: "Testnet",
+    restUrl: "https://testnet.movementnetwork.xyz",
+    faucetUrl: "https://faucet.testnet.movementnetwork.xyz",
+  },
+  "movement-testnet": {
+    network: "Testnet",
+    restUrl: "https://testnet.movementnetwork.xyz",
+    faucetUrl: "https://faucet.testnet.movementnetwork.xyz",
+  },
+  devnet: {
+    network: "Devnet",
+    restUrl: "https://devnet.movementnetwork.xyz",
+    faucetUrl: "https://faucet.devnet.movementnetwork.xyz",
+  },
+  "movement-devnet": {
+    network: "Devnet",
+    restUrl: "https://devnet.movementnetwork.xyz",
+    faucetUrl: "https://faucet.devnet.movementnetwork.xyz",
+  },
+  local: {
+    network: "Local",
+    restUrl: "http://127.0.0.1:8080",
+    faucetUrl: "http://127.0.0.1:8081",
+  },
+};
 
 // TODOs
 // - Test-only APIs
@@ -42,6 +83,29 @@ function stripNodeModulesBin(pathEnv: string) {
 
 const cleanPath = stripNodeModulesBin(process.env.PATH || "");
 
+function getCliBinary(): string {
+  return (
+    process.env.FORKLIFT_CLI_BINARY ||
+    process.env.MOVEMENT_CLI_BINARY ||
+    process.env.APTOS_BINARY ||
+    DEFAULT_CLI_BINARY
+  );
+}
+
+function resolveMovementNetwork(network: string) {
+  return (
+    MOVEMENT_NETWORKS[network.toLowerCase()] ?? {
+      network: "Custom",
+      restUrl: network,
+      faucetUrl: null,
+    }
+  );
+}
+
+function resolveForkNetwork(network: string): string {
+  return resolveMovementNetwork(network).restUrl;
+}
+
 /**
  * Compares two version strings in "X.Y.Z" format.
  * Returns -1 if a < b, 0 if equal, 1 if a > b.
@@ -56,8 +120,11 @@ export function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-function validateCliVersion(): void {
-  const result = spawnSync(APTOS_BINARY, ["--version"], {
+function validateCliVersion(
+  cliBinary: string,
+  requiresSimulationSessions: boolean,
+): void {
+  const result = spawnSync(cliBinary, ["--version"], {
     shell: false,
     encoding: "utf8",
     env: { PATH: cleanPath },
@@ -65,24 +132,39 @@ function validateCliVersion(): void {
 
   if (result.error) {
     throw new Error(
-      "Aptos CLI not found. Install it from https://aptos.dev/tools/aptos-cli/",
+      `CLI binary "${cliBinary}" not found. Set FORKLIFT_CLI_BINARY to a Movement CLI with transaction simulation session support.`,
     );
   }
 
   const output = (result.stdout || "").trim();
-  const match = output.match(/aptos (\d+)\.(\d+)\.(\d+)/);
+  const match = output.match(/(?:aptos|movement) (\d+)\.(\d+)\.(\d+)/);
   if (!match) {
-    throw new Error(
-      `Unable to parse Aptos CLI version from output: "${output}"`,
-    );
+    throw new Error(`Unable to parse CLI version from output: "${output}"`);
   }
 
   const found = `${match[1]}.${match[2]}.${match[3]}`;
 
-  if (compareVersions(found, MIN_CLI_VERSION) < 0) {
+  if (
+    requiresSimulationSessions &&
+    compareVersions(found, MIN_CLI_VERSION) < 0
+  ) {
     throw new Error(
-      `Aptos CLI v${MIN_CLI_VERSION} or later is required (found v${found}). Update: https://aptos.dev/tools/aptos-cli/`,
+      `Movement CLI v${MIN_CLI_VERSION} or later is required for transaction simulation sessions (found v${found}).`,
     );
+  }
+
+  if (requiresSimulationSessions) {
+    const simResult = spawnSync(cliBinary, ["move", "sim", "init", "--help"], {
+      shell: false,
+      encoding: "utf8",
+      env: { PATH: cleanPath },
+    });
+
+    if (simResult.status !== 0) {
+      throw new Error(
+        `Movement CLI "${cliBinary}" does not support transaction simulation sessions. Expected "move sim init" to be available.`,
+      );
+    }
   }
 }
 
@@ -357,7 +439,7 @@ function addPackageOptions(
 }
 
 /**
- * A unified harness for interacting with Aptos networks or perform local or forking-based
+ * A unified harness for interacting with Movement networks or perform local or forking-based
  * simulations.
  *
  * Offers methods to interact with the network state and provides utilities for
@@ -365,15 +447,15 @@ function addPackageOptions(
  *
  * Supports three modes of operation:
  * 1. **Local Simulation**: Runs a fresh, local simulation session.
- * 2. **Network Forking**: Forks the state of a real network (Mainnet/Testnet) for simulation.
- * 3. **Live Mode**: Interacts directly with a real network (costs gas, changes state).
+ * 2. **Network Forking**: Forks the state of a real Movement network for simulation.
+ * 3. **Live Mode**: Interacts directly with a real Movement network (costs gas, changes state).
  *
  * Use the static factory methods to create a harness instance:
  * - `Harness.createLocal()`
  * - `Harness.createNetworkFork(network, apiKey)`
  * - `Harness.createLive(network)`
  *
- * Under the hood, it uses the Aptos CLI to execute commands.
+ * Under the hood, it uses the Movement CLI to execute commands.
  *
  * To prevent misuse of the harness after it has been cleaned up, the class uses a Proxy
  * pattern. The constructor returns a Proxy that intercepts all method calls. If the
@@ -385,6 +467,7 @@ class Harness {
   private workingDir: string;
   private poisoned: boolean;
   private isLiveMode: boolean;
+  private cliBinary: string;
   private network: string;
   private restUrl: string;
   private faucetUrl: string | null;
@@ -408,48 +491,31 @@ class Harness {
   }
 
   /**
-   * Runs an Aptos CLI command in the harness working directory.
+   * Runs a Movement CLI command in the harness working directory.
    */
   private runAptos(args: string[]): any {
-    return runCommand(APTOS_BINARY, args, { cwd: this.workingDir });
+    return runCommand(this.cliBinary, args, { cwd: this.workingDir });
   }
 
   private constructor(options: HarnessOptions) {
-    validateCliVersion();
+    this.cliBinary = getCliBinary();
+    this.isLiveMode = options.mode === "live";
+    validateCliVersion(this.cliBinary, !this.isLiveMode);
 
     // Create a temporary directory with a unique name
     this.workingDir = mkdtempSync(join(tmpdir(), "forklift-"));
     this.poisoned = false;
-    this.isLiveMode = options.mode === "live";
 
     if (this.isLiveMode) {
       assert(options.network, "network is required in live mode");
 
-      const net = options.network.toLowerCase();
-      if (net === "mainnet") {
-        this.network = "Mainnet";
-        this.restUrl = "https://fullnode.mainnet.aptoslabs.com";
-        this.faucetUrl = null; // No faucet on mainnet
-      } else if (net === "testnet") {
-        this.network = "Testnet";
-        this.restUrl = "https://fullnode.testnet.aptoslabs.com";
-        this.faucetUrl = null; // Testnet faucet requires web UI with Google auth
-      } else if (net === "devnet") {
-        this.network = "Devnet";
-        this.restUrl = "https://fullnode.devnet.aptoslabs.com";
-        this.faucetUrl = "https://faucet.devnet.aptoslabs.com";
-      } else if (net === "local") {
-        this.network = "Local";
-        this.restUrl = "http://127.0.0.1:8080";
-        this.faucetUrl = "http://127.0.0.1:8081";
-      } else {
-        this.network = "Custom";
-        this.restUrl = options.network;
-        this.faucetUrl = options.faucetUrl ?? null;
-      }
+      const resolved = resolveMovementNetwork(options.network);
+      this.network = resolved.network;
+      this.restUrl = resolved.restUrl;
+      this.faucetUrl = options.faucetUrl ?? resolved.faucetUrl;
     } else {
       this.network = "Custom";
-      this.restUrl = "https://dummy.network.aptoslabs.com";
+      this.restUrl = "https://dummy.network.movementnetwork.xyz";
       this.faucetUrl = null;
     }
 
@@ -482,7 +548,7 @@ class Harness {
   /**
    * Creates a harness for local simulation.
    *
-   * In this mode, the harness starts a fresh, local Aptos simulation session.
+   * In this mode, the harness starts a fresh, local Movement simulation session.
    * This is useful for unit testing Move contracts in isolation.
    *
    * @returns A new Harness instance configured for local simulation.
@@ -495,7 +561,7 @@ class Harness {
    * Creates a harness for network forking simulation.
    *
    * In this mode, the harness initializes a simulation session that is forked from a real network
-   * (e.g., Mainnet, Testnet) at a specific point in time (latest by default).
+   * (e.g., Movement Mainnet or Testnet) at a specific point in time (latest by default).
    * This allows testing against real-world state without spending gas or affecting the real network.
 
    * @returns A new Harness instance configured for network forking.
@@ -516,8 +582,8 @@ class Harness {
   /**
    * Creates a harness for interacting with a live network ("Live Mode").
    *
-   * In this mode, the harness acts as a wrapper around the Aptos CLI to execute transactions
-   * directly against a real network (Mainnet, Testnet, Devnet, or a custom node).
+   * In this mode, the harness acts as a wrapper around the Movement CLI to execute transactions
+   * directly against a real Movement network (Mainnet, Testnet, Devnet, or a custom node).
    *
    * WARNING: Operations in this mode cost real gas and permanently alter the chain state.
    *
@@ -534,7 +600,7 @@ class Harness {
   }
 
   /**
-   * Initialize the Aptos CLI profile in the temporary directory.
+   * Initialize the Movement CLI profile in the temporary directory.
    * If a private key is not provided, a random one will be generated.
    *
    * This is currently done by appending a new profile to the CLI's config file
@@ -606,7 +672,7 @@ class Harness {
   }
 
   /**
-   * Initialize the Aptos Transaction Simulation Session.
+   * Initialize the Movement Transaction Simulation Session.
    *
    * Sets up a simulation environment for testing Aptos transactions. If both network and API key
    * are provided, they will be used to connect to the specified network. Otherwise, a local
@@ -619,7 +685,7 @@ class Harness {
 
     // Add network and API key if both are provided
     if (options.network && options.apiKey) {
-      args.push("--network", options.network);
+      args.push("--network", resolveForkNetwork(options.network));
       args.push("--api-key", options.apiKey);
 
       if (options.networkVersion) {
@@ -640,7 +706,7 @@ class Harness {
 
     if (!res || res.Result !== "Success") {
       throw new Error(
-        `aptos init failed: expected Result = Success, got ${JSON.stringify(res)}`,
+        `movement move sim init failed: expected Result = Success, got ${JSON.stringify(res)}`,
       );
     }
   }
