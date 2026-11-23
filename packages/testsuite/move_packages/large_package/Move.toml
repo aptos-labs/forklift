@@ -3,7 +3,7 @@ name = "LargePackage"
 version = "0.0.1"
 
 [dependencies]
-AptosStdlib = { git = "https://github.com/aptos-labs/aptos-framework.git", subdir = "aptos-stdlib", rev = "mainnet" }
+AptosStdlib = { git = "https://github.com/aptos-labs/aptos-framework.git", subdir = "aptos-stdlib", rev = "aptos-release-v1.45" }
 
 [addresses]
 my_addr = "_"
