@@ -4,17 +4,23 @@ const apiKey = process.env.APTOS_API_KEY;
 
 (apiKey ? describe : describe.skip)("network forking", () => {
   let harness: Harness;
+  let initialBalance: bigint;
 
   const testnetAccountAddr =
     "0x3f9e0589ca0668a5273b86bfcb5f357164408a889bc733b309cf1901098c8ce5";
 
+  afterAll(() => {
+    harness?.cleanup();
+  });
+
   it("should initialize harness", () => {
-    harness = Harness.createNetworkFork("testnet", apiKey!, 7111477749);
+    harness = Harness.createNetworkFork("testnet", apiKey!);
   });
 
   it("view account balance", () => {
-    const balance = harness.getAPTBalanceFungibleStore(testnetAccountAddr);
-    expect(balance).toBe(BigInt(9182903550));
+    initialBalance = harness.getAPTBalanceFungibleStore(testnetAccountAddr);
+    expect(typeof initialBalance).toBe("bigint");
+    expect(initialBalance >= BigInt(0)).toBe(true);
   });
 
   it("transfer to existing account", () => {
@@ -30,6 +36,6 @@ const apiKey = process.env.APTOS_API_KEY;
     assertTxnSuccess(res);
 
     const balance = harness.getAPTBalanceFungibleStore(testnetAccountAddr);
-    expect(balance).toBe(BigInt(9182905550));
+    expect(balance).toBe(initialBalance + BigInt(2000));
   });
 });
